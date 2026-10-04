@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\PatientRecord;
 use App\Models\Template;
 use App\Models\User;
+use App\Services\PlaceholderMap;
 use App\Support\RecordType;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Storage;
@@ -14,9 +15,11 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Tests\TestCase;
 
 /**
- * Medical Mission behaves like PCU Error: same list, same create flow, same
- * document. The differences live in App\Support\RecordType and are asserted
- * here so a later tweak to one type cannot quietly change another.
+ * Medical Mission: its own Excel template, its own evidence rules (the ID photo
+ * plus a photo of the ID document), and no PCU error screenshot or error code.
+ *
+ * The differences live in App\Support\RecordType and are asserted here so a
+ * later tweak to one type cannot quietly change another.
  */
 class MedicalMissionRecordTest extends TestCase
 {
@@ -24,50 +27,69 @@ class MedicalMissionRecordTest extends TestCase
 
     protected User $user;
 
-    protected Template $template;
+    /** Live template per printing type. */
+    protected array $templates = [];
 
     protected function setUp(): void
     {
         parent::setUp();
 
         // Real files on the private disk: the generator reads the template and
-        // the photo from there, so faking it with a stub path would not do.
+        // the photos from there, so a stub path would not do.
         Storage::fake('private');
 
         $this->user = User::factory()->create();
         // Admin so the policy allows create and delete; the factory sets no role.
         $this->user->forceFill(['is_active' => true, 'role' => 'admin'])->save();
 
-        $this->template = Template::create([
-            'name' => 'Form',
-            'file_path' => 'templates/v1.xlsx',
+        $this->templates = [
+            RecordType::ERROR => $this->makeTemplate(RecordType::ERROR),
+            RecordType::MISSION => $this->makeTemplate(RecordType::MISSION),
+        ];
+    }
+
+    /** A live, empty-workbook template for one record type. */
+    protected function makeTemplate(string $type): Template
+    {
+        $path = 'templates/'.$type.'.xlsx';
+
+        Storage::disk('private')->makeDirectory('templates');
+        $book = new Spreadsheet;
+        $book->getActiveSheet()->setCellValue('A1', 'x');
+        (new Xlsx($book))->save(Storage::disk('private')->path($path));
+        unset($book);
+
+        return Template::create([
+            'name' => ucfirst($type).' form',
+            'record_type' => $type,
+            'file_path' => $path,
             'version' => '1.0.0',
             'is_active' => true,
             'created_by' => $this->user->id,
         ]);
-        $this->writeMinimalTemplate();
     }
 
-    /** A workbook with just enough structure for the generator to open. */
-    protected function writeMinimalTemplate(): void
+    /** Declares required placeholders on a type's template. */
+    protected function withFields(string $type, array $fields): void
     {
-        Storage::disk('private')->makeDirectory('templates');
-
-        $book = new Spreadsheet;
-        $book->getActiveSheet()->setCellValue('A1', 'x');
-        $book->getActiveSheet()->setCellValue('B1', 'y');
-        (new Xlsx($book))
-            ->save(Storage::disk('private')->path($this->template->file_path));
-        unset($book);
+        foreach ($fields as $i => $placeholder) {
+            $this->templates[$type]->fields()->create([
+                'placeholder' => $placeholder,
+                'label' => $placeholder,
+                'type' => PlaceholderMap::type($placeholder),
+                'is_required' => true,
+                'sort_order' => $i + 1,
+            ]);
+        }
     }
 
     /** Stores a genuine 1x1 PNG and returns its private-disk path. */
-    protected function storeFakeIdPhoto(): string
+    protected function storeFakeIdPhoto(string $name = 'id'): string
     {
         $png = base64_decode(
             'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
         );
-        $path = 'test-images/id.png';
+        $path = 'test-images/'.$name.'.png';
         Storage::disk('private')->put($path, $png);
 
         return $path;
@@ -77,7 +99,7 @@ class MedicalMissionRecordTest extends TestCase
     {
         return PatientRecord::create([
             'created_by' => $this->user->id,
-            'template_id' => $this->template->id,
+            'template_id' => RecordType::usesTemplate($type) ? $this->templates[$type]->id : null,
             'record_type' => $type,
             'patient_name' => $name,
             'birthdate' => '2000-01-15',
@@ -94,6 +116,21 @@ class MedicalMissionRecordTest extends TestCase
         $this->assertSame('Medical Mission', RecordType::label('mission'));
         $this->assertTrue(RecordType::exists('mission'));
         $this->assertFalse(RecordType::exists('nonsense'));
+    }
+
+    public function test_only_the_printing_types_own_a_template(): void
+    {
+        $this->assertTrue(RecordType::usesTemplate('error'));
+        $this->assertTrue(RecordType::usesTemplate('mission'));
+        $this->assertFalse(RecordType::usesTemplate('success'), 'success is data-only');
+        $this->assertSame(['error', 'mission'], RecordType::templateTypes());
+    }
+
+    public function test_each_type_resolves_its_own_live_template(): void
+    {
+        $this->assertSame($this->templates['error']->id, Template::activeFor('error')->id);
+        $this->assertSame($this->templates['mission']->id, Template::activeFor('mission')->id);
+        $this->assertNull(Template::activeFor('success'), 'data-only types have no template');
     }
 
     public function test_the_mission_list_is_reachable_and_shows_only_mission_records(): void
@@ -129,7 +166,7 @@ class MedicalMissionRecordTest extends TestCase
             'patient_name' => 'JUAN DELA CRUZ',
             'birthdate' => '1990-05-05',
             'philhealth_id' => '12-345678901-2',
-            'template_id' => $this->template->id,
+            'template_id' => $this->templates['mission']->id,
         ]);
 
         // No PCU error code and no error screenshot are demanded for a mission.
@@ -147,7 +184,7 @@ class MedicalMissionRecordTest extends TestCase
             'patient_name' => '',
             'birthdate' => '1990-05-05',
             'philhealth_id' => '12-345678901-2',
-            'template_id' => $this->template->id,
+            'template_id' => $this->templates['mission']->id,
         ])->assertSessionHasErrors(['patient_name']);
 
         $this->actingAs($this->user)->post(route('records.store'), [
@@ -155,7 +192,7 @@ class MedicalMissionRecordTest extends TestCase
             'patient_name' => 'NO PIN',
             'birthdate' => '1990-05-05',
             'philhealth_id' => '',
-            'template_id' => $this->template->id,
+            'template_id' => $this->templates['mission']->id,
         ])->assertSessionHasErrors(['philhealth_id']);
     }
 
@@ -166,7 +203,7 @@ class MedicalMissionRecordTest extends TestCase
             'patient_name' => 'SOMEONE',
             'birthdate' => '1990-05-05',
             'philhealth_id' => '12-345678901-2',
-            'template_id' => $this->template->id,
+            'template_id' => $this->templates['mission']->id,
         ])->assertSessionHasErrors(['record_type']);
     }
 
@@ -177,22 +214,24 @@ class MedicalMissionRecordTest extends TestCase
             'patient_name' => 'NO CODE',
             'birthdate' => '1990-05-05',
             'philhealth_id' => '12-345678901-2',
-            'template_id' => $this->template->id,
         ])->assertSessionHasErrors(['pcu_error_code']);
     }
 
-    public function test_the_create_page_for_mission_hides_the_error_screenshot(): void
+    public function test_the_create_page_for_mission_asks_for_the_id_proof_and_not_an_error_screenshot(): void
     {
         $response = $this->actingAs($this->user)->get(route('records.mission.create'));
 
         $response->assertOk();
         $response->assertSee('New Medical Mission Record');
         $response->assertSee('name="image_with_id"', false);
+        // The ID document itself is a second, separate upload.
+        $response->assertSee('ID Proof');
+        $response->assertSee('name="id_proof"', false);
         $response->assertDontSee('name="empanelment_error_image"', false);
         $response->assertDontSee('name="pcu_error_code"', false);
     }
 
-    public function test_the_create_page_for_error_keeps_both_photos(): void
+    public function test_the_create_page_for_error_keeps_its_two_photos_and_no_id_proof(): void
     {
         $response = $this->actingAs($this->user)->get(route('records.error.create'));
 
@@ -200,6 +239,38 @@ class MedicalMissionRecordTest extends TestCase
         $response->assertSee('name="image_with_id"', false);
         $response->assertSee('name="empanelment_error_image"', false);
         $response->assertSee('name="pcu_error_code"', false);
+        $response->assertDontSee('name="id_proof"', false);
+    }
+
+    public function test_the_success_create_page_saves_without_a_template(): void
+    {
+        $response = $this->actingAs($this->user)->get(route('records.success.create'));
+
+        $response->assertOk();
+        $response->assertSee('Save Record');
+        $response->assertDontSee('name="template_id"', false);
+        $response->assertDontSee('name="image_with_id"', false);
+    }
+
+    public function test_a_printing_type_cannot_be_added_before_its_template_is_uploaded(): void
+    {
+        $this->templates['mission']->update(['is_active' => false]);
+
+        $response = $this->actingAs($this->user)->get(route('records.mission.create'));
+
+        $response->assertRedirect(route('settings.index'));
+        $response->assertSessionHas('error');
+    }
+
+    public function test_the_settings_page_offers_one_upload_per_printing_type(): void
+    {
+        $response = $this->actingAs($this->user)->get(route('settings.index'));
+
+        $response->assertOk();
+        $response->assertSee('name="template_file_error"', false);
+        $response->assertSee('name="template_file_mission"', false);
+        // Success prints nothing, so it gets no upload slot.
+        $response->assertDontSee('name="template_file_success"', false);
     }
 
     public function test_deleting_a_mission_record_returns_to_the_mission_list(): void
@@ -265,52 +336,62 @@ class MedicalMissionRecordTest extends TestCase
     }
 
     /**
-     * The shared template carries an error-image placeholder that a mission has
-     * no value for. Generation must skip that slot instead of demanding it,
-     * while still demanding the ID image.
+     * A mission template that declares an error-image slot the record has no
+     * value for: generation must skip that slot rather than demand it, while
+     * still demanding the ID photo and the ID proof.
      */
-    public function test_generation_demands_the_id_image_but_not_an_error_image_for_a_mission(): void
+    public function test_generation_demands_the_id_photos_but_not_an_error_image_for_a_mission(): void
     {
-        $this->template->fields()->createMany([
-            ['placeholder' => 'image_with_id', 'label' => 'ID', 'type' => 'image', 'is_required' => true, 'sort_order' => 1],
-            ['placeholder' => 'empanelment_error', 'label' => 'Error', 'type' => 'image', 'is_required' => true, 'sort_order' => 2],
-        ]);
+        $this->withFields('mission', ['image_with_id', 'id_proof', 'empanelment_error']);
 
         $mission = $this->makeRecord('mission');
-        $mission->forceFill(['image_with_id_path' => $this->storeFakeIdPhoto()])->save();
+        $mission->forceFill([
+            'image_with_id_path' => $this->storeFakeIdPhoto('id'),
+            'id_proof_image_path' => $this->storeFakeIdPhoto('proof'),
+        ])->save();
 
-        // The only required images are satisfied: no error screenshot demanded.
+        // Both required photos are supplied, so no error screenshot is demanded.
         $this->actingAs($this->user)
             ->from(route('records.show', $mission))
             ->get(route('records.generate', $mission))
             ->assertSessionHasNoErrors();
 
-        // With the ID image missing, the ID slot is still reported.
-        $noPhoto = $this->makeRecord('mission', 'NO PHOTO');
+        // With the photos missing, the image slots are still reported.
+        $noPhotos = $this->makeRecord('mission', 'NO PHOTOS');
         $this->actingAs($this->user)
-            ->from(route('records.show', $noPhoto))
-            ->get(route('records.generate', $noPhoto))
+            ->from(route('records.show', $noPhotos))
+            ->get(route('records.generate', $noPhotos))
             ->assertSessionHasErrors(['generation']);
 
-        $this->assertStringContainsString(
-            'ID Image',
-            session('errors')->first('generation')
-        );
-        $this->assertStringNotContainsString(
-            'Empanelment Error Image',
-            session('errors')->first('generation')
-        );
+        $message = session('errors')->first('generation');
+        $this->assertStringContainsString('ID Image', $message);
+        $this->assertStringContainsString('ID Proof', $message);
+        $this->assertStringNotContainsString('Empanelment Error Image', $message);
+    }
+
+    public function test_a_missing_id_proof_alone_blocks_generation(): void
+    {
+        $this->withFields('mission', ['image_with_id', 'id_proof']);
+
+        $mission = $this->makeRecord('mission');
+        $mission->forceFill(['image_with_id_path' => $this->storeFakeIdPhoto('id')])->save();
+
+        $this->actingAs($this->user)
+            ->from(route('records.show', $mission))
+            ->get(route('records.generate', $mission))
+            ->assertSessionHasErrors(['generation']);
+
+        $message = session('errors')->first('generation');
+        $this->assertStringContainsString('ID Proof', $message);
+        $this->assertStringNotContainsString('ID Image', $message);
     }
 
     public function test_generation_still_demands_the_error_image_for_a_pcu_error(): void
     {
-        $this->template->fields()->createMany([
-            ['placeholder' => 'image_with_id', 'label' => 'ID', 'type' => 'image', 'is_required' => true, 'sort_order' => 1],
-            ['placeholder' => 'empanelment_error', 'label' => 'Error', 'type' => 'image', 'is_required' => true, 'sort_order' => 2],
-        ]);
+        $this->withFields('error', ['image_with_id', 'empanelment_error']);
 
         $error = $this->makeRecord('error');
-        $error->forceFill(['image_with_id_path' => $this->storeFakeIdPhoto()])->save();
+        $error->forceFill(['image_with_id_path' => $this->storeFakeIdPhoto('id')])->save();
 
         $this->actingAs($this->user)
             ->from(route('records.show', $error))
@@ -321,6 +402,100 @@ class MedicalMissionRecordTest extends TestCase
             'Empanelment Error Image',
             session('errors')->first('generation')
         );
+    }
+
+    public function test_the_list_drops_the_head_of_clinic_and_type_columns(): void
+    {
+        $this->makeRecord('error', 'ERROR ROW');
+        $this->makeRecord('mission', 'MISSION ROW');
+
+        foreach ([route('records.error'), route('records.mission')] as $url) {
+            $response = $this->actingAs($this->user)->get($url);
+
+            $response->assertOk();
+            $response->assertDontSee('Head of Clinic');
+            $response->assertDontSee('DR. SANTOS', false);
+            $response->assertDontSee('<th>Type</th>', false);
+            // The row's own values must still be there.
+            $response->assertSee('PhilHealth ID');
+        }
+    }
+
+    public function test_a_data_only_record_can_never_be_generated(): void
+    {
+        $success = $this->makeRecord('success');
+
+        $this->actingAs($this->user)
+            ->get(route('records.generate', $success))
+            ->assertForbidden();
+    }
+
+    public function test_a_data_only_record_can_never_be_printed_or_marked_printed(): void
+    {
+        $success = $this->makeRecord('success');
+
+        $this->actingAs($this->user)
+            ->get(route('records.print', $success))
+            ->assertForbidden();
+
+        $this->actingAs($this->user)
+            ->from(route('records.show', $success))
+            ->post(route('records.mark-printed', $success))
+            ->assertForbidden();
+
+        $this->assertSame('generated', $success->fresh()->status, 'status must be untouched');
+    }
+
+    public function test_a_data_only_record_saves_to_the_table_without_generating(): void
+    {
+        $response = $this->actingAs($this->user)->post(route('records.store'), [
+            'record_type' => 'success',
+            'patient_name' => 'JUAN DELA CRUZ',
+            'birthdate' => '1990-05-05',
+            'philhealth_id' => '12-345678901-2',
+            'pcu_error_code' => 'PCU-OK-1',
+        ]);
+
+        $response->assertSessionHasNoErrors();
+        $response->assertRedirect(route('records.success'));
+
+        $record = PatientRecord::where('patient_name', 'JUAN DELA CRUZ')->firstOrFail();
+        $this->assertNull($record->template_id, 'no layout is attached');
+        $this->assertNull($record->generated_file_path);
+        $this->assertDatabaseCount('document_generations', 0);
+    }
+
+    public function test_a_record_cannot_be_pinned_to_another_types_template(): void
+    {
+        $this->actingAs($this->user)->post(route('records.store'), [
+            'record_type' => 'mission',
+            'patient_name' => 'WRONG FORM',
+            'birthdate' => '1990-05-05',
+            'philhealth_id' => '12-345678901-2',
+            'template_id' => $this->templates['error']->id,
+        ])->assertSessionHasErrors(['template_id']);
+
+        $this->assertDatabaseMissing('patient_records', ['patient_name' => 'WRONG FORM']);
+    }
+
+    public function test_a_superseded_template_still_lets_its_own_record_be_edited(): void
+    {
+        $mission = $this->makeRecord('mission');
+        $mission->forceFill(['patient_name' => 'BEFORE'])->save();
+
+        // Adoption normally moves records off a retired template, but a rebuild
+        // can fail; the stranded record must stay editable.
+        $this->templates['mission']->update(['is_active' => false]);
+
+        $this->actingAs($this->user)->put(route('records.update', $mission), [
+            'record_type' => 'mission',
+            'patient_name' => 'AFTER',
+            'birthdate' => '1990-05-05',
+            'philhealth_id' => '12-345678901-2',
+            'template_id' => $this->templates['mission']->id,
+        ])->assertSessionHasNoErrors();
+
+        $this->assertSame('AFTER', $mission->fresh()->patient_name);
     }
 
     /** Pulls the first column of the streamed workbook as plain text. */

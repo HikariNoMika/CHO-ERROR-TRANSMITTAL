@@ -23,6 +23,7 @@ class PatientRecord extends Model
         'date_today',
         'image_with_id_path',
         'empanelment_error_image_path',
+        'id_proof_image_path',
         'template_id',
         'generated_file_path',
         'status',
@@ -61,25 +62,37 @@ class PatientRecord extends Model
 
     public function getImageWithIdUrlAttribute(): ?string
     {
-        if (!$this->image_with_id_path) {
+        if (! $this->image_with_id_path) {
             return null;
         }
+
         return route('records.image', [$this, 'id']);
     }
 
     public function getEmpanelmentErrorImageUrlAttribute(): ?string
     {
-        if (!$this->empanelment_error_image_path) {
+        if (! $this->empanelment_error_image_path) {
             return null;
         }
+
         return route('records.image', [$this, 'error']);
+    }
+
+    public function getIdProofImageUrlAttribute(): ?string
+    {
+        if (! $this->id_proof_image_path) {
+            return null;
+        }
+
+        return route('records.image', [$this, 'id_proof']);
     }
 
     public function getGeneratedFileUrlAttribute(): ?string
     {
-        if (!$this->generated_file_path) {
+        if (! $this->generated_file_path) {
             return null;
         }
+
         return Storage::disk('private')->url($this->generated_file_path);
     }
 

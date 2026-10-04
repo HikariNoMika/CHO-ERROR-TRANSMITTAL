@@ -5,11 +5,14 @@ namespace App\Support;
 /**
  * The kinds of patient record the app keeps.
  *
- * Each type owns a list, a create link and its labels. Everything else —
- * document generation, exports, the single active template — is shared.
- * The per-type differences live here rather than as `=== 'success'` checks
- * scattered through the controllers and views, so adding or adjusting a type
- * is a matter of editing one row.
+ * Each type owns a list, a create link and its labels. The per-type differences
+ * live here rather than as `=== 'success'` checks scattered through the
+ * controllers and views, so adding or adjusting a type is a matter of editing
+ * one row.
+ *
+ * Two kinds of type exist:
+ *  - printing types own an Excel template and produce a document
+ *  - data-only types just record inputs and are exported
  *
  * Adding a type: add an entry to self::TYPES and the two matching routes.
  */
@@ -32,9 +35,11 @@ final class RecordType
      *   route          named route of the list
      *   create_route   named route of the new-record form
      *   path           url segment
+     *   template       whether the type prints from its own Excel template
      *   evidence       whether the template's image slots must be filled
      *   error_code     whether the type's own code field is mandatory
      *   error_image    whether the empanelment-error photo is mandatory
+     *   id_proof       whether a photo of the ID document itself is mandatory
      * ]
      *
      * @var array<string, array<string, bool|string>>
@@ -47,9 +52,11 @@ final class RecordType
             'route' => 'records.error',
             'create_route' => 'records.error.create',
             'path' => 'error',
+            'template' => true,
             'evidence' => true,
             'error_code' => false,
             'error_image' => true,
+            'id_proof' => false,
         ],
         self::SUCCESS => [
             'label' => 'PCU Success',
@@ -58,10 +65,13 @@ final class RecordType
             'route' => 'records.success',
             'create_route' => 'records.success.create',
             'path' => 'success',
-            // Quick logs: no evidence photos are chased up.
+            // A quick log: the inputs are the record, and they are exported.
+            // Nothing is printed, so there is no template to fill or keep.
+            'template' => false,
             'evidence' => false,
             'error_code' => true,
             'error_image' => false,
+            'id_proof' => false,
         ],
         self::MISSION => [
             'label' => 'Medical Mission',
@@ -70,11 +80,14 @@ final class RecordType
             'route' => 'records.mission',
             'create_route' => 'records.mission.create',
             'path' => 'mission',
-            // Registers a patient on a mission: the ID photo is the evidence,
-            // the PCU error screenshot has no meaning here.
+            // Registers a patient on a mission: the ID photo and the ID
+            // document are the evidence. The PCU error screenshot, which the
+            // error template carries, has no meaning here.
+            'template' => true,
             'evidence' => true,
             'error_code' => false,
             'error_image' => false,
+            'id_proof' => true,
         ],
     ];
 
@@ -126,6 +139,15 @@ final class RecordType
         return self::get($type, 'badge');
     }
 
+    /**
+     * Whether this type prints from its own Excel template. Data-only types
+     * record inputs for export and have no template at all.
+     */
+    public static function usesTemplate(?string $type): bool
+    {
+        return self::flag($type, 'template');
+    }
+
     /** Whether the template's image slots must be supplied before saving. */
     public static function needsEvidence(?string $type): bool
     {
@@ -140,6 +162,21 @@ final class RecordType
     public static function needsErrorImage(?string $type): bool
     {
         return self::needsEvidence($type) && self::flag($type, 'error_image');
+    }
+
+    /** Whether a photo of the ID document itself is required. */
+    public static function needsIdProof(?string $type): bool
+    {
+        return self::needsEvidence($type) && self::flag($type, 'id_proof');
+    }
+
+    /** @return string[] types that own an Excel template */
+    public static function templateTypes(): array
+    {
+        return array_values(array_filter(
+            self::slugs(),
+            fn (string $slug): bool => self::usesTemplate($slug)
+        ));
     }
 
     public static function indexRoute(?string $type): string

@@ -15,6 +15,7 @@ class ImageRelationshipTest extends TestCase
     use RefreshDatabase;
 
     private User $user;
+
     private Template $template;
 
     private function seedTemplateWithBackground(string $name): string
@@ -43,11 +44,11 @@ class ImageRelationshipTest extends TestCase
     private function writeTemplateZip(string $absPath): void
     {
         $dir = dirname($absPath);
-        if (!is_dir($dir)) {
+        if (! is_dir($dir)) {
             mkdir($dir, 0777, true);
         }
 
-        $z = new \ZipArchive();
+        $z = new \ZipArchive;
         $z->open($absPath, \ZipArchive::CREATE | \ZipArchive::OVERWRITE);
 
         $z->addFromString('[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
@@ -97,6 +98,14 @@ class ImageRelationshipTest extends TestCase
             .'<xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="100" cy="100"/></a:xfrm></xdr:spPr>'
             .'<xdr:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>{{empanelment_error}}</a:t></a:r></a:p></xdr:txBody>'
             .'</xdr:sp><xdr:clientData/></xdr:twoCellAnchor>'
+            .'<xdr:twoCellAnchor>'
+            .'<xdr:from><xdr:col>1</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>10</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from>'
+            .'<xdr:to><xdr:col>3</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>13</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to>'
+            .'<xdr:sp><xdr:nvSpPr><xdr:cNvPr id="5" name="ID Proof"/>'
+            .'<xdr:cNvSpPr><a:spLocks noTextEdit="1"/></xdr:cNvSpPr></xdr:nvSpPr>'
+            .'<xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="100" cy="100"/></a:xfrm></xdr:spPr>'
+            .'<xdr:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>{{id_proof}}</a:t></a:r></a:p></xdr:txBody>'
+            .'</xdr:sp><xdr:clientData/></xdr:twoCellAnchor>'
             .'</xdr:wsDr>');
 
         $z->addFromString('xl/drawings/_rels/drawing1.xml.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
@@ -114,6 +123,7 @@ class ImageRelationshipTest extends TestCase
     {
         // 1x1 png whose payload differs per seed, so two images never collide.
         $png = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==');
+
         return substr($png, 0, 20).$seed.substr($png, 21);
     }
 
@@ -144,7 +154,7 @@ class ImageRelationshipTest extends TestCase
 
         $out = Storage::disk('private')->path($result['path']);
 
-        $z = new \ZipArchive();
+        $z = new \ZipArchive;
         $z->open($out);
         $rels = $z->getFromName('xl/drawings/_rels/drawing1.xml.rels');
         $drawing = $z->getFromName('xl/drawings/drawing1.xml');
@@ -154,7 +164,7 @@ class ImageRelationshipTest extends TestCase
         }
         $z->close();
 
-        $dom = new \DOMDocument();
+        $dom = new \DOMDocument;
         $dom->loadXML($rels);
         $xp = new \DOMXPath($dom);
         $xp->registerNamespace('r', 'http://schemas.openxmlformats.org/package/2006/relationships');
@@ -178,13 +188,13 @@ class ImageRelationshipTest extends TestCase
         }
 
         // r:embed must be a declared namespaced attribute on a:blip in DrawingML main.
-        $ddom = new \DOMDocument();
+        $ddom = new \DOMDocument;
         $ddom->loadXML($drawing);
         $dxp = new \DOMXPath($ddom);
         $dxp->registerNamespace('a', 'http://schemas.openxmlformats.org/drawingml/2006/main');
         $dxp->registerNamespace('r', 'http://schemas.openxmlformats.org/officeDocument/2006/relationships');
         // Match by local name so an element in the wrong namespace is still inspected
-// rather than silently skipped.
+        // rather than silently skipped.
         $blips = $dxp->query('//*[local-name()="blip"]');
         $this->assertGreaterThanOrEqual(3, $blips->length, 'expected the template blip plus one per inserted image');
 
@@ -203,8 +213,103 @@ class ImageRelationshipTest extends TestCase
 
         // The whole part must parse: an undeclared prefix would fail here.
         libxml_use_internal_errors(true);
-        $reparsed = new \DOMDocument();
+        $reparsed = new \DOMDocument;
         $this->assertTrue($reparsed->loadXML($drawing), 'drawing part must be well-formed XML');
         libxml_clear_errors();
+    }
+
+    /**
+     * A medical mission prints the patient holding their ID and a photo of the
+     * ID document itself. Both are photos the user uploaded, so each needs its
+     * own media part and relationship rather than sharing a target.
+     */
+    public function test_a_mission_embeds_the_id_photo_and_the_id_proof_separately(): void
+    {
+        Storage::fake('private');
+        $templatePath = $this->seedTemplateWithBackground('mission.xlsx');
+        $this->template->update(['record_type' => 'mission']);
+
+        Storage::disk('private')->put('uploads/id.png', $this->pngBytes(1));
+        Storage::disk('private')->put('uploads/proof.png', $this->pngBytes(3));
+
+        $record = PatientRecord::create([
+            'created_by' => $this->user->id,
+            'template_id' => $this->template->id,
+            'record_type' => 'mission',
+            'patient_name' => 'JUAN DELA CRUZ',
+            'birthdate' => '2000-01-15',
+            'philhealth_id' => '12-345678901-2',
+            'head_of_clinic' => 'DR. SANTOS',
+            'status' => 'generated',
+            'image_with_id_path' => 'uploads/id.png',
+            'id_proof_image_path' => 'uploads/proof.png',
+        ]);
+
+        $result = app(XlsxDirectGenerationService::class)->generate($record, $templatePath);
+
+        $out = Storage::disk('private')->path($result['path']);
+
+        $z = new \ZipArchive;
+        $z->open($out);
+        $drawing = $z->getFromName('xl/drawings/drawing1.xml');
+        $rels = $z->getFromName('xl/drawings/_rels/drawing1.xml.rels');
+        $names = [];
+        for ($i = 0; $i < $z->numFiles; $i++) {
+            $names[] = $z->getNameIndex($i);
+        }
+        $z->close();
+
+        // No raw placeholder may survive into the printed sheet.
+        $this->assertStringNotContainsString('{{id_proof}}', $drawing);
+        $this->assertStringNotContainsString('{{image_with_id}}', $drawing);
+
+        $dom = new \DOMDocument;
+        $dom->loadXML($rels);
+        $xp = new \DOMXPath($dom);
+        $xp->registerNamespace('r', 'http://schemas.openxmlformats.org/package/2006/relationships');
+        $targets = [];
+        foreach ($xp->query('//r:Relationship') as $rel) {
+            $targets[$rel->getAttribute('Target')] = true;
+        }
+
+        $this->assertMatchesRegularExpression(
+            '#\.\./media/img_id_[a-z0-9]{8}\.png$#',
+            $this->firstTargetMatching($targets, '#img_id_[a-z0-9]{8}\.png$#'),
+            'the ID photo must be embedded'
+        );
+        $this->assertMatchesRegularExpression(
+            '#\.\./media/img_id_proof_[a-z0-9]{8}\.png$#',
+            $this->firstTargetMatching($targets, '#img_id_proof_[a-z0-9]{8}\.png$#'),
+            'the ID proof must be embedded'
+        );
+
+        foreach (array_keys($targets) as $target) {
+            $this->assertContains('xl/media/'.basename($target), $names, "relationship points at a missing part: $target");
+        }
+
+        // The proof's own bytes must be in the package, not just its filename.
+        $proofTarget = $this->firstTargetMatching($targets, '#img_id_proof_[a-z0-9]{8}\.png$#');
+        $z2 = new \ZipArchive;
+        $z2->open($out);
+        $proof = $z2->getFromName('xl/media/'.basename($proofTarget));
+        $z2->close();
+        $this->assertNotSame('', (string) $proof, 'the ID proof image part is empty');
+        $this->assertStringContainsString('PNG', (string) $proof);
+
+        // The two photos must not collapse onto one shared media part.
+        $idTarget = $this->firstTargetMatching($targets, '#img_id_[a-z0-9]{8}\.png$#');
+        $this->assertNotSame($idTarget, $proofTarget, 'the ID photo and the ID proof need separate media parts');
+    }
+
+    /** @param array<string, true> $targets */
+    private function firstTargetMatching(array $targets, string $regex): string
+    {
+        foreach (array_keys($targets) as $target) {
+            if (preg_match($regex, (string) $target)) {
+                return (string) $target;
+            }
+        }
+
+        return '';
     }
 }

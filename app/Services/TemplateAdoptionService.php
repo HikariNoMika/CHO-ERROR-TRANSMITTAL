@@ -8,11 +8,12 @@ use App\Models\User;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Single-template mode.
+ * Per-type template mode.
  *
- * The clinic keeps one live template, so uploading a replacement means every
- * record has to follow it: each record is re-pointed at the new template and
- * its document is rebuilt.
+ * Each printing record type keeps one live template of its own, so uploading a
+ * replacement only affects that type: records of that type are re-pointed at the
+ * new file and their documents are rebuilt. Other types keep the layout they
+ * already had.
  *
  * Documents already produced are never rewritten. document_generations keeps one
  * append-only row per generation, including the template version used, so the
@@ -20,13 +21,11 @@ use Illuminate\Support\Facades\Log;
  */
 class TemplateAdoptionService
 {
-    public function __construct(protected DocumentGenerationService $documents)
-    {
-    }
+    public function __construct(protected DocumentGenerationService $documents) {}
 
     /**
-     * Point every record at $template and rebuild the documents that already
-     * exist.
+     * Point every record of the template's own type at $template and rebuild the
+     * documents that already exist.
      *
      * Only records that already have a document are rebuilt. Draft records have
      * nothing to replace, and generating them here would produce files for
@@ -36,10 +35,15 @@ class TemplateAdoptionService
      */
     public function adopt(Template $template, User $user): array
     {
-        $migrated = PatientRecord::where('template_id', '!=', $template->id)
+        // Scoped to the type: a PCU Error upload must not drag Medical Mission
+        // records, or data-only records that have no template, onto it.
+        $ofType = PatientRecord::where('record_type', $template->record_type);
+
+        $migrated = (clone $ofType)
+            ->where('template_id', '!=', $template->id)
             ->update(['template_id' => $template->id]);
 
-        $records = PatientRecord::whereNotNull('generated_file_path')->get();
+        $records = (clone $ofType)->whereNotNull('generated_file_path')->get();
 
         $rebuilt = 0;
         $failed = [];
@@ -95,21 +99,21 @@ class TemplateAdoptionService
         $parts = [];
 
         if ($result['migrated'] > 0) {
-            $parts[] = $result['migrated'] . ' record' . ($result['migrated'] === 1 ? '' : 's')
-                . ' now use this template';
+            $parts[] = $result['migrated'].' record'.($result['migrated'] === 1 ? '' : 's')
+                .' now use this template';
         }
 
         if ($result['rebuilt'] > 0) {
-            $parts[] = $result['rebuilt'] . ' document' . ($result['rebuilt'] === 1 ? '' : 's')
-                . ' rebuilt';
+            $parts[] = $result['rebuilt'].' document'.($result['rebuilt'] === 1 ? '' : 's')
+                .' rebuilt';
         }
 
         if ($result['failed'] !== []) {
-            $parts[] = count($result['failed']) . ' could not be rebuilt: '
-                . implode(', ', array_slice($result['failed'], 0, 3))
-                . (count($result['failed']) > 3 ? '…' : '');
+            $parts[] = count($result['failed']).' could not be rebuilt: '
+                .implode(', ', array_slice($result['failed'], 0, 3))
+                .(count($result['failed']) > 3 ? '…' : '');
         }
 
-        return $parts === [] ? 'No existing records needed updating.' : implode('. ', $parts) . '.';
+        return $parts === [] ? 'No existing records needed updating.' : implode('. ', $parts).'.';
     }
 }

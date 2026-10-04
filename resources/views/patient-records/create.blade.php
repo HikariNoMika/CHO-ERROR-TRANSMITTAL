@@ -7,12 +7,14 @@
 @section('content')
 @php
     // Per-type shape and field rules come from App\Support\RecordType: success
-    // records are quick logs with no evidence images (a single narrow column),
-    // while medical mission records collect the ID photo but no PCU error code.
+    // records are data-only quick logs (a single narrow column, nothing
+    // printed), while medical mission records collect the ID photo plus a photo
+    // of the ID document and no PCU error code.
     $type = \App\Support\RecordType::normalise(request('type'));
     $isSuccess = $type === \App\Support\RecordType::SUCCESS;
     $hasErrorCode = $type !== \App\Support\RecordType::MISSION;
     $needsErrorImage = \App\Support\RecordType::needsErrorImage($type);
+    $needsIdProof = \App\Support\RecordType::needsIdProof($type);
 @endphp
 <div class="form-wrap {{ $isSuccess ? 'narrow' : '' }}">
     <form method="POST" action="{{ route('records.store') }}" enctype="multipart/form-data" id="record-form">
@@ -74,6 +76,21 @@
                         ])
                     </div>
 
+                    @if ($needsIdProof)
+                        <div class="card">
+                            <h3>ID Proof *</h3>
+                            <p style="color:#6b7280;">Photo of the ID document itself, separate from the photo above.</p>
+                            @include('patient-records.partials.image-upload', [
+                                'fieldName' => 'id_proof',
+                                'label' => 'ID Proof',
+                                'base64Field' => 'id_proof_base64',
+                                'existingImage' => null,
+                                'removeField' => 'remove_id_proof',
+                            ])
+                            @error('id_proof')<p class="fielderror">{{ $message }}</p>@enderror
+                        </div>
+                    @endif
+
                     @if ($needsErrorImage)
                         <div class="card">
                             <h3>Empanelment Error Image *</h3>
@@ -92,13 +109,20 @@
         </div>
 
         <div class="card" style="margin-top:1.25rem;">
-            @if ($defaultTemplate)
+            @if ($isSuccess)
+                {{-- Data-only: nothing is printed, so there is no layout to send. --}}
+            @elseif ($defaultTemplate)
                 <input type="hidden" name="template_id" value="{{ old('template_id', $defaultTemplate->id) }}">
+                <p class="hint">
+                    Printing with <strong>{{ $defaultTemplate->name }}</strong> v{{ $defaultTemplate->version }}.
+                </p>
             @else
-                <p class="flash flash-warn">No active template available. Ask an administrator to upload one before creating records.</p>
+                <p class="flash flash-warn">No active {{ \App\Support\RecordType::label($type) }} template. Ask an administrator to upload one in Settings.</p>
             @endif
             <div class="actions" style="justify-content:flex-end;">
-                <button type="submit" data-submit-btn><span data-btn-label>Save &amp; Print</span></button>
+                <button type="submit" data-submit-btn>
+                    <span data-btn-label>{{ $isSuccess ? 'Save Record' : 'Save &amp; Print' }}</span>
+                </button>
             </div>
         </div>
     </form>
@@ -264,6 +288,9 @@
         // Success forms have no image fields, so skip wiring them entirely.
         if (document.getElementById('image_with_id-dropzone')) {
             setupImageField('image_with_id', 'image_with_id_base64');
+            // Present only for the types that collect them; setupImageField
+            // returns early when its elements are absent.
+            setupImageField('id_proof', 'id_proof_base64');
             setupImageField('empanelment_error_image', 'empanelment_error_image_base64');
             syncPasteTarget();
         }

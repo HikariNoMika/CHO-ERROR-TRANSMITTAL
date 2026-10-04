@@ -29,8 +29,10 @@
                     <span>{{ \App\Support\RecordType::label($recordType) }}</span>
                     <span aria-hidden="true">&middot;</span>
                     <span>{{ ucfirst($record->status) }}</span>
-                    <span aria-hidden="true">&middot;</span>
-                    <span>{{ $record->template->name }} <span class="mono">v{{ $record->template->version }}</span></span>
+                    @if ($record->template)
+                        <span aria-hidden="true">&middot;</span>
+                        <span>{{ $record->template->name }} <span class="mono">v{{ $record->template->version }}</span></span>
+                    @endif
                 </div>
             </div>
 
@@ -115,7 +117,7 @@
         </div>
     </div>
 
-    @if ($record->image_with_id_url || $record->empanelment_error_image_url)
+    @if ($record->image_with_id_url || $record->empanelment_error_image_url || $record->id_proof_image_url)
         <div class="card">
             <h3>Evidence</h3>
             <div class="evidence-row">
@@ -130,6 +132,16 @@
                         <div class="shot-empty">No ID image uploaded</div>
                     @endif
                 </div>
+
+                @if ($record->id_proof_image_url)
+                    <div>
+                        <div class="k" style="margin-bottom:.35rem;">ID Proof</div>
+                        <a href="{{ $record->id_proof_image_url }}" target="_blank" rel="noopener" class="shot">
+                            <img src="{{ $record->id_proof_image_url }}" alt="ID proof of {{ $record->patient_name }}">
+                            <span class="zoom">View full size</span>
+                        </a>
+                    </div>
+                @endif
 
                 @if ($record->empanelment_error_image_url)
                     <div>

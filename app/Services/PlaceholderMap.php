@@ -53,7 +53,7 @@ class PlaceholderMap
         'pcu_error' => 'pcu_error_code',
     ];
 
-    /** placeholder => image slot ('id' | 'error') */
+    /** placeholder => image slot ('id' | 'error' | 'id_proof') */
     const IMAGES = [
         'image_with_id' => 'id',
         'person_with_id' => 'id',
@@ -62,6 +62,19 @@ class PlaceholderMap
         'empanelment_error' => 'error',
         'empanelment_error_image' => 'error',
         'error_image' => 'error',
+        // A photo of the ID document itself, separate from the photo of the
+        // patient holding the ID.
+        'id_proof' => 'id_proof',
+        'id_proof_image' => 'id_proof',
+        'person_id' => 'id_proof',
+        'id_card' => 'id_proof',
+    ];
+
+    /** Image slot => name used for the picture shape and warning text. */
+    const IMAGE_SLOT_LABELS = [
+        'id' => 'ID Image',
+        'error' => 'Empanelment Error Image',
+        'id_proof' => 'ID Proof',
     ];
 
     /** Canonical text fields that are required by default on new templates. */
@@ -77,6 +90,22 @@ class PlaceholderMap
         return self::IMAGES[strtolower($placeholder)] ?? null;
     }
 
+    public static function slotLabel(?string $slot): string
+    {
+        return self::IMAGE_SLOT_LABELS[$slot] ?? 'Image';
+    }
+
+    /** The record column holding a slot's uploaded file, if any. */
+    public static function slotColumn(?string $slot): ?string
+    {
+        return match ($slot) {
+            'id' => 'image_with_id_path',
+            'error' => 'empanelment_error_image_path',
+            'id_proof' => 'id_proof_image_path',
+            default => null,
+        };
+    }
+
     public static function type(string $placeholder): string
     {
         if (self::imageSlot($placeholder) !== null) {
@@ -86,6 +115,7 @@ class PlaceholderMap
         if (in_array($canonical, ['birthdate', 'date_today', 'appointment_date'], true)) {
             return 'date';
         }
+
         return 'text';
     }
 

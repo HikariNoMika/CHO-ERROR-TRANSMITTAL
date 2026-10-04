@@ -23,20 +23,23 @@ use ZipArchive;
 class XlsxDirectGenerationService
 {
     const DRAWING_NS = 'http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing';
+
     const A_NS = 'http://schemas.openxmlformats.org/drawingml/2006/main';
+
     const R_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+
     const REL_NS = 'http://schemas.openxmlformats.org/package/2006/relationships';
+
     const SHEET_NS = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
 
     protected array $warnings = [];
+
     protected array $unknownPlaceholders = [];
 
-    /** @var array<string, \DOMDocument> In-memory copies of parts mutated mid-generation. */
+    /** @var array<string, DOMDocument> In-memory copies of parts mutated mid-generation. */
     protected array $partCache = [];
 
-    public function __construct(protected TextAutofitService $autofit)
-    {
-    }
+    public function __construct(protected TextAutofitService $autofit) {}
 
     /**
      * @return array{path: string, warnings: string[]}
@@ -51,17 +54,17 @@ class XlsxDirectGenerationService
         $values = $this->textValues($record);
         $images = $this->imagePaths($record);
 
-        $relDir = 'generated-documents/' . now()->format('Y/m');
+        $relDir = 'generated-documents/'.now()->format('Y/m');
         Storage::disk('private')->makeDirectory($relDir);
         $filename = $this->filenameFor($record);
         $relPath = "{$relDir}/{$filename}";
         $absPath = Storage::disk('private')->path($relPath);
 
-        if (!copy($templateAbsPath, $absPath)) {
+        if (! copy($templateAbsPath, $absPath)) {
             throw new \RuntimeException('Could not copy template for generation.');
         }
 
-        $zip = new ZipArchive();
+        $zip = new ZipArchive;
         if ($zip->open($absPath) !== true) {
             throw new \RuntimeException('Could not open working copy for generation.');
         }
@@ -75,7 +78,7 @@ class XlsxDirectGenerationService
         }
 
         foreach (array_keys($this->unknownPlaceholders) as $unknown) {
-            $this->warnings[] = 'Unknown placeholder {{' . $unknown . '}} was left blank.';
+            $this->warnings[] = 'Unknown placeholder {{'.$unknown.'}} was left blank.';
         }
 
         return ['path' => $relPath, 'warnings' => $this->warnings];
@@ -89,6 +92,7 @@ class XlsxDirectGenerationService
     public function resolveValues(PatientRecord $record): array
     {
         $record->loadMissing('template');
+
         return $this->textValues($record);
     }
 
@@ -108,16 +112,23 @@ class XlsxDirectGenerationService
         ];
     }
 
-    /** slot ('id'|'error') => absolute image path */
+    /**
+     * slot => absolute image path, for every slot this record can supply.
+     *
+     * Driven by the placeholder map so a new image slot only needs a column
+     * and a map entry.
+     */
     protected function imagePaths(PatientRecord $record): array
     {
         $images = [];
-        if ($record->image_with_id_path && Storage::disk('private')->exists($record->image_with_id_path)) {
-            $images['id'] = Storage::disk('private')->path($record->image_with_id_path);
+        foreach (['id', 'error', 'id_proof'] as $slot) {
+            $column = PlaceholderMap::slotColumn($slot);
+            $stored = $column ? $record->$column : null;
+            if ($stored && Storage::disk('private')->exists($stored)) {
+                $images[$slot] = Storage::disk('private')->path($stored);
+            }
         }
-        if ($record->empanelment_error_image_path && Storage::disk('private')->exists($record->empanelment_error_image_path)) {
-            $images['error'] = Storage::disk('private')->path($record->empanelment_error_image_path);
-        }
+
         return $images;
     }
 
@@ -128,6 +139,7 @@ class XlsxDirectGenerationService
             return $values[$canonical] ?? '';
         }
         $this->unknownPlaceholders[$placeholder] = true;
+
         return '';
     }
 
@@ -136,6 +148,7 @@ class XlsxDirectGenerationService
         $sanitized = Str::slug($record->patient_name) ?: 'patient';
         $dateStr = now()->format('Y-m-d');
         $uniqueId = Str::upper(Str::random(6));
+
         return "EMPANELMENT_{$sanitized}_{$dateStr}_{$uniqueId}.xlsx";
     }
 
@@ -189,10 +202,10 @@ class XlsxDirectGenerationService
     protected function autofitShapeText(DOMXPath $xp, \DOMNode $paragraph, string $text, array $matchedPlaceholders): void
     {
         $config = config('mca.autofit');
-        if (!($config['enabled'] ?? true) || trim($text) === '') {
+        if (! ($config['enabled'] ?? true) || trim($text) === '') {
             return;
         }
-        if (!$this->shouldAutofit($matchedPlaceholders, $config['fields'])) {
+        if (! $this->shouldAutofit($matchedPlaceholders, $config['fields'])) {
             return;
         }
 
@@ -278,11 +291,12 @@ class XlsxDirectGenerationService
 
     protected function loadXml(string $xml): ?DOMDocument
     {
-        $dom = new DOMDocument();
+        $dom = new DOMDocument;
         $dom->preserveWhiteSpace = false;
-        if (!@$dom->loadXML($xml)) {
+        if (! @$dom->loadXML($xml)) {
             return null;
         }
+
         return $dom;
     }
 
@@ -297,10 +311,11 @@ class XlsxDirectGenerationService
      */
     protected function mutablePart(ZipArchive $zip, string $entry, string $blankXml): ?DOMDocument
     {
-        if (!isset($this->partCache[$entry])) {
+        if (! isset($this->partCache[$entry])) {
             $xml = $zip->getFromName($entry);
             $this->partCache[$entry] = $this->loadXml($xml === false ? $blankXml : $xml);
         }
+
         return $this->partCache[$entry];
     }
 
@@ -315,7 +330,7 @@ class XlsxDirectGenerationService
             return;
         }
         $dom = $this->loadXml($xml);
-        if (!$dom) {
+        if (! $dom) {
             return;
         }
         $xp = new DOMXPath($dom);
@@ -332,7 +347,7 @@ class XlsxDirectGenerationService
                 continue;
             }
             $dom = $this->loadXml($xml);
-            if (!$dom) {
+            if (! $dom) {
                 continue;
             }
             $xp = new DOMXPath($dom);
@@ -358,7 +373,7 @@ class XlsxDirectGenerationService
                 continue;
             }
             $dom = $this->loadXml($xml);
-            if (!$dom) {
+            if (! $dom) {
                 continue;
             }
             $xp = new DOMXPath($dom);
@@ -425,7 +440,7 @@ class XlsxDirectGenerationService
                     break;
                 }
             }
-            if (!$shape) {
+            if (! $shape) {
                 continue;
             }
 
@@ -445,10 +460,11 @@ class XlsxDirectGenerationService
                 continue;
             }
 
-            if (!isset($images[$slot])) {
+            if (! isset($images[$slot])) {
                 // No image supplied: drop the shape so no raw {{placeholder}} prints.
                 $anchor->parentNode->removeChild($anchor);
-                $this->warnings[] = ($slot === 'id' ? 'ID image' : 'Empanelment error image') . ' was not provided; its area was left blank.';
+                $this->warnings[] = PlaceholderMap::slotLabel($slot).' was not provided; its area was left blank.';
+
                 continue;
             }
 
@@ -501,7 +517,7 @@ class XlsxDirectGenerationService
         $nvPicPr = $dom->createElementNS(self::DRAWING_NS, 'xdr:nvPicPr');
         $cNvPr = $dom->createElementNS(self::DRAWING_NS, 'xdr:cNvPr');
         $cNvPr->setAttribute('id', (string) $cNvId);
-        $cNvPr->setAttribute('name', $slot === 'id' ? 'ID Image' : 'Empanelment Error');
+        $cNvPr->setAttribute('name', PlaceholderMap::slotLabel($slot));
         $nvPicPr->appendChild($cNvPr);
         $cNvPicPr = $dom->createElementNS(self::DRAWING_NS, 'xdr:cNvPicPr');
         $locks = $dom->createElementNS(self::A_NS, 'a:picLocks');
@@ -542,11 +558,13 @@ class XlsxDirectGenerationService
     protected function nodeText(DOMXPath $xp, string $query, $context): string
     {
         $nodes = $xp->query($query, $context);
+
         return ($nodes !== false && $nodes->length > 0) ? $nodes->item(0)->nodeValue : '0';
     }
 
     /**
      * Add the image to xl/media + drawing rels + content types.
+     *
      * @return array{0: string, 1: string} [mediaTarget, relId]
      */
     protected function addImageMedia(ZipArchive $zip, string $drawingFile, string $slot, string $imageAbsPath): array
@@ -561,7 +579,7 @@ class XlsxDirectGenerationService
                 }
             }
             do {
-                $mediaName = 'xl/media/img_' . $slot . '_' . Str::lower(Str::random(8)) . '.' . $ext;
+                $mediaName = 'xl/media/img_'.$slot.'_'.Str::lower(Str::random(8)).'.'.$ext;
             } while (in_array($mediaName, $existing, true));
 
             if ($zip->addFile($preparedPath, $mediaName) !== true) {
@@ -570,9 +588,9 @@ class XlsxDirectGenerationService
 
             $this->ensureContentType($zip, $ext);
 
-            $relsFile = 'xl/drawings/_rels/' . basename($drawingFile) . '.rels';
-            $rdom = $this->mutablePart($zip, $relsFile, '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="' . self::REL_NS . '"></Relationships>');
-            if (!$rdom) {
+            $relsFile = 'xl/drawings/_rels/'.basename($drawingFile).'.rels';
+            $rdom = $this->mutablePart($zip, $relsFile, '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="'.self::REL_NS.'"></Relationships>');
+            if (! $rdom) {
                 throw new \RuntimeException('Could not update drawing relationships.');
             }
             $rxp = new DOMXPath($rdom);
@@ -583,11 +601,11 @@ class XlsxDirectGenerationService
                     $maxRid = max($maxRid, (int) $mm[1]);
                 }
             }
-            $relId = 'rId' . ($maxRid + 1);
+            $relId = 'rId'.($maxRid + 1);
             $rel = $rdom->createElementNS(self::REL_NS, 'Relationship');
             $rel->setAttribute('Id', $relId);
-            $rel->setAttribute('Type', self::R_NS . '/image');
-            $rel->setAttribute('Target', '../media/' . basename($mediaName));
+            $rel->setAttribute('Type', self::R_NS.'/image');
+            $rel->setAttribute('Target', '../media/'.basename($mediaName));
             $rdom->documentElement->appendChild($rel);
             $zip->addFromString($relsFile, $rdom->saveXML());
 
@@ -606,14 +624,14 @@ class XlsxDirectGenerationService
         $dom = $this->mutablePart(
             $zip,
             '[Content_Types].xml',
-            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="' . $ctNs . '"></Types>'
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="'.$ctNs.'"></Types>'
         );
-        if (!$dom || !$dom->documentElement) {
+        if (! $dom || ! $dom->documentElement) {
             return;
         }
         $xp = new DOMXPath($dom);
         $xp->registerNamespace('c', $ctNs);
-        $found = $xp->query('//c:Default[@Extension="' . $ext . '"]');
+        $found = $xp->query('//c:Default[@Extension="'.$ext.'"]');
         if ($found !== false && $found->length > 0) {
             return;
         }
@@ -627,6 +645,7 @@ class XlsxDirectGenerationService
     /**
      * Normalise the image for Excel embedding: Excel cannot display webp,
      * so convert to png; downscale very large photos to bound file size.
+     *
      * @return array{0: string, 1: string, 2: bool} [path, ext, cleanupTemp]
      */
     protected function prepareImage(string $absPath): array
@@ -636,15 +655,17 @@ class XlsxDirectGenerationService
         $needsConvert = $mime === 'image/webp'
             || ($info && max($info[0], $info[1]) > 1600);
 
-        if (!$needsConvert) {
+        if (! $needsConvert) {
             $ext = $mime === 'image/png' ? 'png' : 'jpeg';
+
             return [$absPath, $ext, false];
         }
 
         $src = @imagecreatefromstring(@file_get_contents($absPath));
-        if (!$src) {
+        if (! $src) {
             // GD cannot read it: embed as-is and hope for the best.
             $ext = $mime === 'image/png' ? 'png' : 'jpeg';
+
             return [$absPath, $ext, false];
         }
 
@@ -669,6 +690,7 @@ class XlsxDirectGenerationService
             $ext = 'jpeg';
         }
         imagedestroy($src);
+
         return [$tmp, $ext, true];
     }
 
@@ -683,6 +705,7 @@ class XlsxDirectGenerationService
             }
         }
         sort($out);
+
         return $out;
     }
 }

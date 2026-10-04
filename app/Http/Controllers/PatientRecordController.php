@@ -4,18 +4,24 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\PatientRecordRequest;
 use App\Models\PatientRecord;
+use App\Models\Setting;
 use App\Models\Template;
-use App\Services\DocumentGenerationService;
 use App\Services\AuditLogService;
+use App\Services\DocumentGenerationService;
 use App\Services\PatientRecordsWorkbookService;
 use App\Support\RecordType;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class PatientRecordController extends Controller
 {
     protected DocumentGenerationService $documentService;
+
     protected AuditLogService $auditLog;
+
     protected PatientRecordsWorkbookService $workbook;
 
     public function __construct(
@@ -35,14 +41,14 @@ class PatientRecordController extends Controller
         // Direct links (/records/error, /records/success) carry the type as
         // a route default; normalise it into the request so every downstream
         // reader (title, tabs, filters, export) works unchanged.
-        if ($request->route('type') && !$request->filled('type')) {
+        if ($request->route('type') && ! $request->filled('type')) {
             $request->merge(['type' => $request->route('type')]);
         }
 
         // Page size is user-selectable; clamp to the offered options so a
         // hand-edited query string cannot ask for an unbounded result set.
         $perPage = (int) $request->query('per_page', 25);
-        if (!in_array($perPage, [10, 25, 50, 100], true)) {
+        if (! in_array($perPage, [10, 25, 50, 100], true)) {
             $perPage = 25;
         }
 
@@ -70,7 +76,7 @@ class PatientRecordController extends Controller
             $request
         );
 
-        $filename = 'MCA_Records_' . now()->format('Y-m-d_His') . '.xlsx';
+        $filename = 'MCA_Records_'.now()->format('Y-m-d_His').'.xlsx';
 
         return $this->workbook->stream($spreadsheet, $filename);
     }
@@ -100,8 +106,8 @@ class PatientRecordController extends Controller
 
         $count = count($records);
         $scope = count($validated['records']) === $count
-            ? "{$count} selected record" . ($count === 1 ? '' : 's')
-            : "{$count} of " . count($validated['records']) . ' selected records found';
+            ? "{$count} selected record".($count === 1 ? '' : 's')
+            : "{$count} of ".count($validated['records']).' selected records found';
 
         // The rows were ticked off a filtered list, so the sheet states the range
         // they were chosen from as well as how many actually made it.
@@ -111,7 +117,7 @@ class PatientRecordController extends Controller
             'MCA Patient Records Export'
         );
 
-        $filename = 'MCA_Records_Selected_' . now()->format('Y-m-d_His') . '.xlsx';
+        $filename = 'MCA_Records_Selected_'.now()->format('Y-m-d_His').'.xlsx';
 
         return $this->workbook->stream($spreadsheet, $filename);
     }
@@ -172,10 +178,10 @@ class PatientRecordController extends Controller
         }
 
         $from = $request->filled('date_from')
-            ? \Carbon\Carbon::parse($request->date_from)->format('m-d-y')
+            ? Carbon::parse($request->date_from)->format('m-d-y')
             : 'start';
         $to = $request->filled('date_to')
-            ? \Carbon\Carbon::parse($request->date_to)->format('m-d-y')
+            ? Carbon::parse($request->date_to)->format('m-d-y')
             : 'today';
 
         return "{$from} to {$to}";
@@ -187,12 +193,26 @@ class PatientRecordController extends Controller
 
         // Direct links (/records/error/create, /records/success/create) carry
         // the type as a route default; normalise it for the form preselect.
-        if ($request->route('type') && !$request->filled('type')) {
+        if ($request->route('type') && ! $request->filled('type')) {
             $request->merge(['type' => $request->route('type')]);
         }
 
-        // Single-template mode: the first active template is the default.
-        $defaultTemplate = Template::where('is_active', true)->orderBy('id')->first(['id', 'name']);
+        $type = RecordType::normalise($request->input('type'));
+
+        // Printing types need their own live template. Without one there is no
+        // layout to fill, so the form is not offered at all.
+        $defaultTemplate = null;
+
+        if (RecordType::usesTemplate($type)) {
+            $defaultTemplate = Template::activeFor($type);
+
+            if (! $defaultTemplate) {
+                return redirect()
+                    ->route('settings.index')
+                    ->with('error', 'Upload a '.RecordType::label($type).' template in Settings before adding '
+                        .Str::lower(RecordType::label($type)).' records.');
+            }
+        }
 
         return view('patient-records.create', compact('defaultTemplate'));
     }
@@ -202,21 +222,32 @@ class PatientRecordController extends Controller
         Gate::authorize('create', PatientRecord::class);
 
         $data = $request->validated();
+        $type = RecordType::normalise($data['record_type'] ?? null);
+
+        // Data-only records keep no template and are never printed.
+        if (! RecordType::usesTemplate($type)) {
+            $data['template_id'] = null;
+        }
+
         $data['created_by'] = $request->user()->id;
         $data['status'] = 'draft';
-        
+
         // Auto-fill head_of_clinic from settings if not provided
         if (empty($data['head_of_clinic'])) {
-            $data['head_of_clinic'] = \App\Models\Setting::getHeadOfClinic();
+            $data['head_of_clinic'] = Setting::getHeadOfClinic();
         }
 
         // Handle image uploads
         if ($request->hasFile('image_with_id')) {
-            $data['image_with_id_path'] = $request->file('image_with_id')->store('patient-images/' . now()->format('Y/m'), 'private');
+            $data['image_with_id_path'] = $request->file('image_with_id')->store('patient-images/'.now()->format('Y/m'), 'private');
         }
 
         if ($request->hasFile('empanelment_error_image')) {
-            $data['empanelment_error_image_path'] = $request->file('empanelment_error_image')->store('patient-images/' . now()->format('Y/m'), 'private');
+            $data['empanelment_error_image_path'] = $request->file('empanelment_error_image')->store('patient-images/'.now()->format('Y/m'), 'private');
+        }
+
+        if ($request->hasFile('id_proof')) {
+            $data['id_proof_image_path'] = $request->file('id_proof')->store('patient-images/'.now()->format('Y/m'), 'private');
         }
 
         // Handle base64 pasted images
@@ -228,11 +259,22 @@ class PatientRecordController extends Controller
             $data['empanelment_error_image_path'] = $this->storeBase64Image($request->empanelment_error_image_base64);
         }
 
+        if ($request->filled('id_proof_base64')) {
+            $data['id_proof_image_path'] = $this->storeBase64Image($request->id_proof_base64);
+        }
+
         $record = PatientRecord::create($data);
 
         $this->auditLog->logRecordCreated($record, $request);
 
-        // Single flow: every save generates the document and opens print.
+        // Data-only records stop at the table; there is nothing to print.
+        if (! RecordType::usesTemplate($type)) {
+            return redirect()
+                ->route(RecordType::indexRoute($type))
+                ->with('success', RecordType::label($type).' record saved.');
+        }
+
+        // Single flow: every printing save generates the document and opens print.
         return redirect()->route('records.generate', $record);
     }
 
@@ -262,24 +304,24 @@ class PatientRecordController extends Controller
         if ($request->hasFile('image_with_id')) {
             // Delete old image
             if ($record->image_with_id_path) {
-                \Illuminate\Support\Facades\Storage::disk('private')->delete($record->image_with_id_path);
+                Storage::disk('private')->delete($record->image_with_id_path);
             }
-            $data['image_with_id_path'] = $request->file('image_with_id')->store('patient-images/' . now()->format('Y/m'), 'private');
+            $data['image_with_id_path'] = $request->file('image_with_id')->store('patient-images/'.now()->format('Y/m'), 'private');
         } elseif ($request->boolean('remove_image_with_id')) {
             if ($record->image_with_id_path) {
-                \Illuminate\Support\Facades\Storage::disk('private')->delete($record->image_with_id_path);
+                Storage::disk('private')->delete($record->image_with_id_path);
             }
             $data['image_with_id_path'] = null;
         }
 
         if ($request->hasFile('empanelment_error_image')) {
             if ($record->empanelment_error_image_path) {
-                \Illuminate\Support\Facades\Storage::disk('private')->delete($record->empanelment_error_image_path);
+                Storage::disk('private')->delete($record->empanelment_error_image_path);
             }
-            $data['empanelment_error_image_path'] = $request->file('empanelment_error_image')->store('patient-images/' . now()->format('Y/m'), 'private');
+            $data['empanelment_error_image_path'] = $request->file('empanelment_error_image')->store('patient-images/'.now()->format('Y/m'), 'private');
         } elseif ($request->boolean('remove_empanelment_error_image')) {
             if ($record->empanelment_error_image_path) {
-                \Illuminate\Support\Facades\Storage::disk('private')->delete($record->empanelment_error_image_path);
+                Storage::disk('private')->delete($record->empanelment_error_image_path);
             }
             $data['empanelment_error_image_path'] = null;
         }
@@ -287,23 +329,49 @@ class PatientRecordController extends Controller
         // Handle base64 pasted images
         if ($request->filled('image_with_id_base64')) {
             if ($record->image_with_id_path) {
-                \Illuminate\Support\Facades\Storage::disk('private')->delete($record->image_with_id_path);
+                Storage::disk('private')->delete($record->image_with_id_path);
             }
             $data['image_with_id_path'] = $this->storeBase64Image($request->image_with_id_base64);
         }
 
         if ($request->filled('empanelment_error_image_base64')) {
             if ($record->empanelment_error_image_path) {
-                \Illuminate\Support\Facades\Storage::disk('private')->delete($record->empanelment_error_image_path);
+                Storage::disk('private')->delete($record->empanelment_error_image_path);
             }
             $data['empanelment_error_image_path'] = $this->storeBase64Image($request->empanelment_error_image_base64);
+        }
+
+        if ($request->hasFile('id_proof')) {
+            if ($record->id_proof_image_path) {
+                Storage::disk('private')->delete($record->id_proof_image_path);
+            }
+            $data['id_proof_image_path'] = $request->file('id_proof')->store('patient-images/'.now()->format('Y/m'), 'private');
+        } elseif ($request->boolean('remove_id_proof')) {
+            if ($record->id_proof_image_path) {
+                Storage::disk('private')->delete($record->id_proof_image_path);
+            }
+            $data['id_proof_image_path'] = null;
+        }
+
+        if ($request->filled('id_proof_base64')) {
+            if ($record->id_proof_image_path) {
+                Storage::disk('private')->delete($record->id_proof_image_path);
+            }
+            $data['id_proof_image_path'] = $this->storeBase64Image($request->id_proof_base64);
         }
 
         $record->update($data);
 
         $this->auditLog->logRecordUpdated($record, $request);
 
-        // Single flow: every save regenerates the document and opens print.
+        // Data-only records stop at the table; there is nothing to print.
+        if (! RecordType::usesTemplate($record->record_type)) {
+            return redirect()
+                ->route(RecordType::indexRoute($record->record_type))
+                ->with('success', RecordType::label($record->record_type).' record updated.');
+        }
+
+        // Single flow: every printing save regenerates the document and opens print.
         return redirect()->route('records.generate', $record);
     }
 
@@ -314,12 +382,13 @@ class PatientRecordController extends Controller
         $path = match ($type) {
             'id' => $record->image_with_id_path,
             'error' => $record->empanelment_error_image_path,
+            'id_proof' => $record->id_proof_image_path,
             default => null,
         };
 
-        abort_unless($path && \Illuminate\Support\Facades\Storage::disk('private')->exists($path), 404);
+        abort_unless($path && Storage::disk('private')->exists($path), 404);
 
-        return response()->file(\Illuminate\Support\Facades\Storage::disk('private')->path($path));
+        return response()->file(Storage::disk('private')->path($path));
     }
 
     public function destroy(PatientRecord $record)
@@ -328,13 +397,16 @@ class PatientRecordController extends Controller
 
         // Delete associated files
         if ($record->image_with_id_path) {
-            \Illuminate\Support\Facades\Storage::disk('private')->delete($record->image_with_id_path);
+            Storage::disk('private')->delete($record->image_with_id_path);
         }
         if ($record->empanelment_error_image_path) {
-            \Illuminate\Support\Facades\Storage::disk('private')->delete($record->empanelment_error_image_path);
+            Storage::disk('private')->delete($record->empanelment_error_image_path);
+        }
+        if ($record->id_proof_image_path) {
+            Storage::disk('private')->delete($record->id_proof_image_path);
         }
         if ($record->generated_file_path) {
-            \Illuminate\Support\Facades\Storage::disk('private')->delete($record->generated_file_path);
+            Storage::disk('private')->delete($record->generated_file_path);
         }
 
         $this->auditLog->logRecordDeleted($record, request());
@@ -356,11 +428,11 @@ class PatientRecordController extends Controller
         }
 
         $content = base64_decode($base64);
-        $filename = \Illuminate\Support\Str::uuid() . ".{$extension}";
-        $path = "patient-images/" . now()->format('Y/m');
+        $filename = Str::uuid().".{$extension}";
+        $path = 'patient-images/'.now()->format('Y/m');
         $fullPath = storage_path("app/private/{$path}");
 
-        \Illuminate\Support\Facades\Storage::disk('private')->makeDirectory($path);
+        Storage::disk('private')->makeDirectory($path);
         file_put_contents("{$fullPath}/{$filename}", $content);
 
         return "{$path}/{$filename}";

@@ -60,36 +60,66 @@
         </div>
 
             <div class="form-col">
-                <div class="card">
-                    <h3>ID Image</h3>
-                    <p style="color:#6b7280;">Keep the current image or replace it.</p>
-                    @include('patient-records.partials.image-upload', [
-                        'fieldName' => 'image_with_id',
-                        'label' => 'ID Image',
-                        'base64Field' => 'image_with_id_base64',
-                        'existingImage' => $record->image_with_id_url,
-                        'removeField' => 'remove_image_with_id',
-                    ])
-                </div>
+                @php
+                    $needsEvidence = \App\Support\RecordType::needsEvidence($record->record_type);
+                    $needsIdProof = \App\Support\RecordType::needsIdProof($record->record_type);
+                    $needsErrorImage = \App\Support\RecordType::needsErrorImage($record->record_type);
+                    $usesTemplate = \App\Support\RecordType::usesTemplate($record->record_type);
+                @endphp
 
-                <div class="card">
-                    <h3>Empanelment Error Image</h3>
-                    <p style="color:#6b7280;">Keep the current image or replace it.</p>
-                    @include('patient-records.partials.image-upload', [
-                        'fieldName' => 'empanelment_error_image',
-                        'label' => 'Empanelment Error Image',
-                        'base64Field' => 'empanelment_error_image_base64',
-                        'existingImage' => $record->empanelment_error_image_url,
-                        'removeField' => 'remove_empanelment_error_image',
-                    ])
-                </div>
+                @if ($needsEvidence)
+                    <div class="card">
+                        <h3>ID Image</h3>
+                        <p style="color:#6b7280;">Keep the current image or replace it.</p>
+                        @include('patient-records.partials.image-upload', [
+                            'fieldName' => 'image_with_id',
+                            'label' => 'ID Image',
+                            'base64Field' => 'image_with_id_base64',
+                            'existingImage' => $record->image_with_id_url,
+                            'removeField' => 'remove_image_with_id',
+                        ])
+                    </div>
+                @endif
+
+                @if ($needsIdProof)
+                    <div class="card">
+                        <h3>ID Proof</h3>
+                        <p style="color:#6b7280;">Photo of the ID document itself.</p>
+                        @include('patient-records.partials.image-upload', [
+                            'fieldName' => 'id_proof',
+                            'label' => 'ID Proof',
+                            'base64Field' => 'id_proof_base64',
+                            'existingImage' => $record->id_proof_image_url,
+                            'removeField' => 'remove_id_proof',
+                        ])
+                        @error('id_proof')<p class="fielderror">{{ $message }}</p>@enderror
+                    </div>
+                @endif
+
+                @if ($needsErrorImage)
+                    <div class="card">
+                        <h3>Empanelment Error Image</h3>
+                        <p style="color:#6b7280;">Keep the current image or replace it.</p>
+                        @include('patient-records.partials.image-upload', [
+                            'fieldName' => 'empanelment_error_image',
+                            'label' => 'Empanelment Error Image',
+                            'base64Field' => 'empanelment_error_image_base64',
+                            'existingImage' => $record->empanelment_error_image_url,
+                            'removeField' => 'remove_empanelment_error_image',
+                        ])
+                    </div>
+                @endif
             </div>
         </div>
 
         <div class="card" style="margin-top:1.25rem;">
-            <input type="hidden" name="template_id" value="{{ old('template_id', $record->template_id) }}">
+            @if ($usesTemplate)
+                <input type="hidden" name="template_id" value="{{ old('template_id', $record->template_id) }}">
+            @endif
             <div class="actions" style="justify-content:flex-end;">
-                <button type="submit" data-submit-btn><span data-btn-label>Save &amp; Print</span></button>
+                <button type="submit" data-submit-btn>
+                    <span data-btn-label>{{ $usesTemplate ? 'Save &amp; Print' : 'Save Changes' }}</span>
+                </button>
             </div>
         </div>
     </form>
@@ -252,9 +282,12 @@
     }
 
     document.addEventListener('DOMContentLoaded', function () {
+        // Each of these returns early when its elements are absent, so a
+        // data-only record simply wires nothing.
         setupImageField('image_with_id', 'image_with_id_base64');
+        setupImageField('id_proof', 'id_proof_base64');
         setupImageField('empanelment_error_image', 'empanelment_error_image_base64');
-            syncPasteTarget();
+        syncPasteTarget();
 
         var form = document.getElementById('record-form');
         if (form) {

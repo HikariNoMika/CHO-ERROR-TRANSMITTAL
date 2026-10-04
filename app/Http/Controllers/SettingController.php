@@ -2,13 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\SettingRequest;
 use App\Models\Setting;
 use App\Models\Template;
-use App\Http\Requests\SettingRequest;
 use App\Services\AuditLogService;
 use App\Services\TemplateAdoptionService;
 use App\Services\TemplateFieldService;
 use App\Services\TemplateParserService;
+use App\Support\RecordType;
 use Illuminate\Support\Facades\Storage;
 
 class SettingController extends Controller
@@ -18,27 +19,35 @@ class SettingController extends Controller
         protected TemplateFieldService $fieldService,
         protected TemplateAdoptionService $adoption,
         protected AuditLogService $auditLog
-    ) {
-    }
+    ) {}
 
     // Route already protected by role:admin middleware.
     public function index()
     {
-        $currentTemplate = Template::where('is_active', true)->orderBy('id')->first();
+        // Each printing type has its own live template, so the page lists them
+        // all rather than a single "current" one.
+        $templates = [];
+        $fields = [];
 
-        // Paginated: a template with many detected placeholders should not
-        // dump an unbounded table onto the settings page.
-        $fields = $currentTemplate
-            ? $currentTemplate->fields()->orderBy('sort_order')->paginate(12)
-            : null;
+        foreach (RecordType::templateTypes() as $type) {
+            $template = Template::activeFor($type);
+            $templates[$type] = $template;
 
-        return view('settings.index', compact('currentTemplate', 'fields'));
+            // Paginated: a template with many detected placeholders should not
+            // dump an unbounded table onto the settings page. One page name per
+            // type so the paginators do not fight over the query string.
+            $fields[$type] = $template
+                ? $template->fields()->orderBy('sort_order')->paginate(12, ['*'], 'fields_'.$type)
+                : null;
+        }
+
+        return view('settings.index', compact('templates', 'fields'));
     }
 
     public function update(SettingRequest $request)
     {
         foreach ($request->validated() as $key => $value) {
-            if ($key === 'template_file') {
+            if (str_starts_with($key, 'template_file')) {
                 continue;
             }
             Setting::set($key, $value);
@@ -46,31 +55,36 @@ class SettingController extends Controller
 
         $templateSummary = null;
 
-        if ($request->hasFile('template_file')) {
-            $templateSummary = $this->replaceTemplate($request);
+        foreach (RecordType::templateTypes() as $type) {
+            $key = 'template_file_'.$type;
+
+            if ($request->hasFile($key)) {
+                $templateSummary = $this->replaceTemplate($request, $type);
+            }
         }
 
         return back()->with('success', $templateSummary ?? 'Settings updated successfully.');
     }
 
     /**
-     * Single-template mode: the uploaded file becomes the active template
-     * (previous version bumped), every other template is deactivated, and all
-     * existing records are moved onto it.
+     * Per-type template: the uploaded file becomes the live template for that
+     * record type (previous version bumped), the type's other templates are
+     * deactivated, and that type's existing records are moved onto it.
      *
      * @return string summary of what the swap changed
      */
-    protected function replaceTemplate(SettingRequest $request): string
+    protected function replaceTemplate(SettingRequest $request, string $type): string
     {
-        $previous = Template::where('is_active', true)->orderBy('id')->first();
+        $previous = Template::activeFor($type);
 
-        $file = $request->file('template_file');
+        $file = $request->file('template_file_'.$type);
         $path = $file->storeAs('templates', $file->hashName(), 'private');
 
         $detected = $this->parser->parse(Storage::disk('private')->path($path));
 
         $template = Template::create([
             'name' => $previous?->name ?? pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME),
+            'record_type' => $type,
             'description' => $previous?->description,
             'file_path' => $path,
             'version' => $this->bumpVersion($previous?->version),
@@ -81,21 +95,27 @@ class SettingController extends Controller
 
         $this->fieldService->sync($template, $detected);
 
-        Template::where('id', '!=', $template->id)->update(['is_active' => false]);
+        // Only this type's templates are deactivated; the other type keeps its
+        // own live layout.
+        Template::where('record_type', $type)
+            ->where('id', '!=', $template->id)
+            ->update(['is_active' => false]);
 
-        // Only one template is kept, so existing records follow the new file.
+        // One live template per type, so that type's records follow the new file.
         $result = $this->adoption->adopt($template, $request->user());
 
         $this->auditLog->logTemplateUploaded($template, $request);
 
-        return 'Template v' . $template->version . ' is now active. ' . $this->adoption->summarise($result);
+        return RecordType::label($type).' template v'.$template->version.' is now active. '
+            .$this->adoption->summarise($result);
     }
 
     protected function bumpVersion(?string $version): string
     {
-        if (!$version || !preg_match('/^(\d+)\.(\d+)\.(\d+)$/', $version, $m)) {
+        if (! $version || ! preg_match('/^(\d+)\.(\d+)\.(\d+)$/', $version, $m)) {
             return '1.0.0';
         }
-        return $m[1] . '.' . $m[2] . '.' . ((int) $m[3] + 1);
+
+        return $m[1].'.'.$m[2].'.'.((int) $m[3] + 1);
     }
 }

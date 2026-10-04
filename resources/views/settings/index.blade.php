@@ -32,19 +32,44 @@
                 <p class="hint">Used by <code>@{{institution_address}}</code> / <code>@{{facility_address}}</code> placeholders.</p>
             </div>
 
-            <h3 style="margin-top:1.5rem;">Excel Template</h3>
-            @if ($currentTemplate)
-                <p>Current: <strong>{{ $currentTemplate->name }}</strong> <span style="color:#6b7280;">v{{ $currentTemplate->version }}</span></p>
-            @else
-                <p style="color:#6b7280;">No active template yet.</p>
-            @endif
+            <h3 style="margin-top:1.5rem;">Excel Templates</h3>
+            <p class="hint" style="margin-bottom:1rem;">
+                Each printing record type keeps its own layout. {{ \App\Support\RecordType::label('success') }} records
+                are data-only, so they print nothing and have no template.
+            </p>
 
-            <div class="field">
-                <label for="template_file">Replace Template (.xlsx)</label>
-                <input type="file" name="template_file" id="template_file" accept=".xlsx">
-                <p class="hint">Leave empty to keep the current file. Uploading replaces it as the single active template (version auto-bumped).</p>
-                @error('template_file')<p class="fielderror">{{ $message }}</p>@enderror
-            </div>
+            {{-- One upload slot per printing type. Each save only touches the
+                 types that actually received a file. --}}
+            @foreach (\App\Support\RecordType::templateTypes() as $type)
+                @php $current = $templates[$type] ?? null; @endphp
+                <div style="border:1px solid var(--line);border-radius:var(--radius);padding:1rem 1.1rem;margin-bottom:1rem;">
+                    <h4 style="margin:0 0 .35rem;font-size:14px;">{{ \App\Support\RecordType::label($type) }} Template</h4>
+
+                    @if ($current)
+                        <p style="margin:0 0 .75rem;color:#6b7280;">
+                            Current: <strong>{{ $current->name }}</strong>
+                            <span>v{{ $current->version }}</span>
+                        </p>
+                    @else
+                        <p style="margin:0 0 .75rem;color:#b45309;">
+                            No {{ \App\Support\RecordType::label($type) }} template uploaded yet.
+                            {{ \App\Support\RecordType::label($type) }} records cannot be added until one is.
+                        </p>
+                    @endif
+
+                    <div class="field">
+                        <label for="template_file_{{ $type }}">
+                            {{ $current ? 'Replace' : 'Upload' }} {{ \App\Support\RecordType::label($type) }} Template (.xlsx)
+                        </label>
+                        <input type="file" name="template_file_{{ $type }}" id="template_file_{{ $type }}" accept=".xlsx">
+                        <p class="hint">
+                            Leave empty to keep the current file. Uploading makes this the live
+                            {{ \App\Support\RecordType::label($type) }} template and moves that type's records onto it.
+                        </p>
+                        @error('template_file_' . $type)<p class="fielderror">{{ $message }}</p>@enderror
+                    </div>
+                </div>
+            @endforeach
 
             <div class="actions" style="justify-content:flex-end;">
                 <button type="submit">Save Settings</button>
@@ -52,36 +77,39 @@
         </form>
     </div>
 
-    @if ($fields && $fields->total() > 0)
-    <div class="card">
-        <div class="page-head" style="margin-bottom:.5rem;">
-            <h3>Detected Placeholders</h3>
-            <span class="hint">{{ $fields->total() }} total</span>
+    @foreach (\App\Support\RecordType::templateTypes() as $type)
+        @php $rows = $fields[$type] ?? null; @endphp
+        @if ($rows && $rows->total() > 0)
+        <div class="card">
+            <div class="page-head" style="margin-bottom:.5rem;">
+                <h3>{{ \App\Support\RecordType::label($type) }} Placeholders</h3>
+                <span class="hint">{{ $rows->total() }} total</span>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr><th>Placeholder</th><th>Type</th><th>Required</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach ($rows as $field)
+                            <tr>
+                                <td><code>{{ $field->placeholder }}</code></td>
+                                <td>{{ ucfirst($field->type) }}</td>
+                                <td>
+                                    @if ($field->is_required)
+                                        <span class="badge badge-green">Required</span>
+                                    @else
+                                        <span class="badge">Optional</span>
+                                    @endif
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+            {{ $rows->onEachSide(1)->links() }}
         </div>
-        <div class="table-wrap">
-            <table>
-                <thead>
-                    <tr><th>Placeholder</th><th>Type</th><th>Required</th></tr>
-                </thead>
-                <tbody>
-                    @foreach ($fields as $field)
-                        <tr>
-                            <td><code>{{ $field->placeholder }}</code></td>
-                            <td>{{ ucfirst($field->type) }}</td>
-                            <td>
-                                @if ($field->is_required)
-                                    <span class="badge badge-green">Required</span>
-                                @else
-                                    <span class="badge">Optional</span>
-                                @endif
-                            </td>
-                        </tr>
-                    @endforeach
-                </tbody>
-            </table>
-        </div>
-        {{ $fields->links() }}
-    </div>
-    @endif
+        @endif
+    @endforeach
 </div>
 @endsection

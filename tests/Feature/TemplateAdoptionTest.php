@@ -12,8 +12,9 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /**
- * Single-template mode: uploading a template must move every record onto it and
- * rebuild the documents that already exist.
+ * Per-type templates: uploading a template must move that type's records onto
+ * it and rebuild the documents that already exist, while leaving every other
+ * type's records and layouts untouched.
  */
 class TemplateAdoptionTest extends TestCase
 {
@@ -27,24 +28,25 @@ class TemplateAdoptionTest extends TestCase
         $this->user = User::factory()->create();
     }
 
-    protected function makeTemplate(string $version): Template
+    protected function makeTemplate(string $version, string $recordType = 'error'): Template
     {
         return Template::create([
             'name' => 'Form',
-            'file_path' => 'templates/' . $version . '.xlsx',
+            'record_type' => $recordType,
+            'file_path' => 'templates/'.$version.'.xlsx',
             'version' => $version,
             'is_active' => false,
             'created_by' => $this->user->id,
         ]);
     }
 
-    protected function makeRecord(Template $template, string $status, ?string $file): PatientRecord
+    protected function makeRecord(Template $template, string $status, ?string $file, string $type = 'error'): PatientRecord
     {
         return PatientRecord::create([
             'created_by' => $this->user->id,
             'template_id' => $template->id,
-            'record_type' => 'error',
-            'patient_name' => 'NAME ' . $status,
+            'record_type' => $type,
+            'patient_name' => 'NAME '.$status,
             'birthdate' => '2000-01-15',
             'philhealth_id' => '12-345678901-2',
             'head_of_clinic' => 'DR. SANTOS',
@@ -62,19 +64,19 @@ class TemplateAdoptionTest extends TestCase
             ->shouldReceive('generate')
             ->andReturnUsing(function (PatientRecord $record, User $user) use (&$seen) {
                 $seen[] = $record->id;
-                $record->update(['status' => 'generated', 'generated_file_path' => 'out/' . $record->id . '.xlsx']);
+                $record->update(['status' => 'generated', 'generated_file_path' => 'out/'.$record->id.'.xlsx']);
 
                 return DocumentGeneration::create([
                     'patient_record_id' => $record->id,
                     'template_id' => $record->template_id,
                     'template_version' => 'x',
-                    'file_path' => 'out/' . $record->id . '.xlsx',
+                    'file_path' => 'out/'.$record->id.'.xlsx',
                     'generated_by' => $user->id,
                 ]);
             });
     }
 
-    public function test_every_record_moves_to_the_new_template(): void
+    public function test_every_record_of_that_type_moves_to_the_new_template(): void
     {
         $oldA = $this->makeTemplate('1.0.0');
         $oldB = $this->makeTemplate('1.0.1');
@@ -95,6 +97,52 @@ class TemplateAdoptionTest extends TestCase
         foreach ([$a, $b, $c] as $r) {
             $this->assertSame($new->id, $r->fresh()->template_id);
         }
+    }
+
+    public function test_records_of_another_type_are_left_alone(): void
+    {
+        $oldError = $this->makeTemplate('1.0.0', 'error');
+        $oldMission = $this->makeTemplate('1.0.0', 'mission');
+        $newError = $this->makeTemplate('1.0.1', 'error');
+
+        $error = $this->makeRecord($oldError, 'generated', 'out/e.xlsx', 'error');
+        $mission = $this->makeRecord($oldMission, 'generated', 'out/m.xlsx', 'mission');
+
+        $seen = [];
+        $this->fakeGeneration($seen);
+
+        $result = app(TemplateAdoptionService::class)->adopt($newError, $this->user);
+
+        $this->assertSame(1, $result['migrated']);
+        $this->assertSame([$error->id], $seen, 'the mission document must not be rebuilt');
+        $this->assertSame($newError->id, $error->fresh()->template_id);
+        $this->assertSame($oldMission->id, $mission->fresh()->template_id);
+    }
+
+    public function test_data_only_records_are_never_migrated(): void
+    {
+        $new = $this->makeTemplate('1.0.1', 'error');
+
+        $success = PatientRecord::create([
+            'created_by' => $this->user->id,
+            'template_id' => null,
+            'record_type' => 'success',
+            'patient_name' => 'NO TEMPLATE',
+            'birthdate' => '2000-01-15',
+            'philhealth_id' => '12-345678901-2',
+            'head_of_clinic' => 'DR. SANTOS',
+            'status' => 'generated',
+            'generated_file_path' => 'out/s.xlsx',
+        ]);
+
+        $seen = [];
+        $this->fakeGeneration($seen);
+
+        $result = app(TemplateAdoptionService::class)->adopt($new, $this->user);
+
+        $this->assertSame(0, $result['migrated']);
+        $this->assertSame([], $seen);
+        $this->assertNull($success->fresh()->template_id);
     }
 
     public function test_printed_records_stay_printed(): void
@@ -157,7 +205,7 @@ class TemplateAdoptionTest extends TestCase
                     'patient_record_id' => $record->id,
                     'template_id' => $record->template_id,
                     'template_version' => 'x',
-                    'file_path' => 'out/' . $record->id . '.xlsx',
+                    'file_path' => 'out/'.$record->id.'.xlsx',
                     'generated_by' => $user->id,
                 ]);
             });

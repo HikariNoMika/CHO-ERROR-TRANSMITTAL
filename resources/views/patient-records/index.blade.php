@@ -7,15 +7,13 @@
 @section('content')
 @php
     $type = \App\Support\RecordType::normalise(request('type'));
-    // Success records only ever carry the four log fields (name, birthdate,
-    // PIN, success code), so the table drops the error-only columns. Medical
-    // mission records keep the error layout, minus the PCU code column.
+    // Head of clinic and record type are per-form details, not list columns:
+    // each list already shows one type, so repeating it per row adds nothing.
     $isSuccess = $type === \App\Support\RecordType::SUCCESS;
     $hasErrorCode = $type !== \App\Support\RecordType::MISSION;
-    // pick, name, birthdate, PhilHealth, created, actions; then the optional
-    // head-of-clinic and type columns (both hidden for success) and the code
-    // column (absent for medical mission).
-    $columnCount = 6 + ($isSuccess ? 0 : 2) + ($hasErrorCode ? 1 : 0);
+    // pick, name, birthdate, PhilHealth, created, actions; plus the code
+    // column, which is absent for medical mission.
+    $columnCount = 6 + ($hasErrorCode ? 1 : 0);
 
 @endphp
 
@@ -91,15 +89,9 @@
                     <th>Patient Name</th>
                     <th>Birthdate</th>
                     <th>PhilHealth ID</th>
-                    @unless ($isSuccess)
-                        <th class="hide-below-xl">Head of Clinic</th>
-                    @endunless
                     @if ($hasErrorCode)
                         <th>{{ $isSuccess ? 'PCU Success Code' : 'PCU Error Code' }}</th>
                     @endif
-                    @unless ($isSuccess)
-                        <th>Type</th>
-                    @endunless
                     <th class="hide-below-xl">Created</th>
                     <th class="align-right">Actions</th>
                 </tr>
@@ -115,15 +107,9 @@
                     <td><strong>{{ $record->patient_name }}</strong></td>
                         <td>{{ $record->birthdate?->format('M j, Y') ?? '—' }}</td>
                         <td><span class="mono">{{ $record->philhealth_id }}</span></td>
-                        @unless ($isSuccess)
-                            <td class="hide-below-xl">{{ $record->head_of_clinic }}</td>
-                        @endunless
                         @if ($hasErrorCode)
                             <td><code>{{ $record->pcu_error_code ?? '—' }}</code></td>
                         @endif
-                        @unless ($isSuccess)
-                            <td><span class="badge {{ \App\Support\RecordType::badge($record->record_type) }}">{{ \App\Support\RecordType::label($record->record_type) }}</span></td>
-                        @endunless
                         <td class="hide-below-xl">{{ $record->created_at->format('M j, Y g:i A') }}</td>
                         <td class="align-right">
                             <span class="row-actions">
@@ -161,9 +147,6 @@
                 <div class="page-head card-head">
                     <input type="checkbox" value="{{ $record->id }}" class="row-pick" aria-label="Select {{ $record->patient_name }}">
                     <strong>{{ $record->patient_name }}</strong>
-                    @unless ($isSuccess)
-                        <span class="badge {{ \App\Support\RecordType::badge($record->record_type) }}">{{ \App\Support\RecordType::label($record->record_type) }}</span>
-                    @endunless
                     <span class="badge">{{ ucfirst($record->status) }}</span>
                 </div>
                 <div class="meta-line">
