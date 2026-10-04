@@ -7,6 +7,7 @@ use App\Models\PatientRecord;
 use App\Models\Template;
 use App\Services\DocumentGenerationService;
 use App\Services\AuditLogService;
+use App\Services\PatientRecordsWorkbookService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 
@@ -14,13 +15,16 @@ class PatientRecordController extends Controller
 {
     protected DocumentGenerationService $documentService;
     protected AuditLogService $auditLog;
+    protected PatientRecordsWorkbookService $workbook;
 
     public function __construct(
         DocumentGenerationService $documentService,
-        AuditLogService $auditLog
+        AuditLogService $auditLog,
+        PatientRecordsWorkbookService $workbook
     ) {
         $this->documentService = $documentService;
         $this->auditLog = $auditLog;
+        $this->workbook = $workbook;
     }
 
     public function index(Request $request)
@@ -55,10 +59,6 @@ class PatientRecordController extends Controller
 
         $records = $this->filteredQuery($request)->limit(5000)->get();
 
-        $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
-        $sheet = $spreadsheet->getActiveSheet();
-        $sheet->setTitle('Patient Records');
-
         // Title + covered date range.
         $period = 'All dates';
         if ($request->filled('date_from') || $request->filled('date_to')) {
@@ -70,54 +70,8 @@ class PatientRecordController extends Controller
                 : 'today';
             $period = "{$from} to {$to}";
         }
-        $sheet->setCellValue('A1', 'MCA Patient Records Report');
-        $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(14);
-        $sheet->setCellValue('A2', "Period: {$period}");
-        $sheet->getStyle('A2')->getFont()->setItalic(true);
-        $sheet->mergeCells('A1:F1');
-        $sheet->mergeCells('A2:F2');
 
-        $headers = [
-            'Patient Name', 'Birthdate', 'PhilHealth ID',
-            'PCU Error Code', 'Created By', 'Created At',
-        ];
-        $sheet->fromArray($headers, null, 'A3');
-        $sheet->getStyle('A3:F3')->getFont()->setBold(true);
-        $sheet->getStyle('A3:F3')->getFill()
-            ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
-            ->getStartColor()->setARGB('FFD9E1F2');
-        $sheet->freezePane('A4');
-
-        // ID-like columns must stay text, or Excel coerces long digit
-        // strings into numbers (e.g. 172008370449 -> 1.72E+11).
-        $sheet->getStyle('C:D')->getNumberFormat()->setFormatCode('@');
-
-        $row = 4;
-        foreach ($records as $record) {
-            $sheet->fromArray([
-                $record->patient_name,
-                $record->birthdate?->format('m-d-y') ?? '',
-                null, // C written explicitly below as text
-                null, // D written explicitly below as text
-                $record->creator?->name ?? '',
-                $record->created_at?->format('m-d-y g:i A') ?? '',
-            ], null, "A{$row}");
-            $sheet->setCellValueExplicit(
-                "C{$row}",
-                (string) $record->philhealth_id,
-                \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING
-            );
-            $sheet->setCellValueExplicit(
-                "D{$row}",
-                (string) ($record->pcu_error_code ?? ''),
-                \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING
-            );
-            $row++;
-        }
-
-        foreach (range('A', 'F') as $col) {
-            $sheet->getColumnDimension($col)->setAutoSize(true);
-        }
+        $spreadsheet = $this->workbook->build($records, $period);
 
         $this->auditLog->log(
             'exported_report',
@@ -129,12 +83,44 @@ class PatientRecordController extends Controller
 
         $filename = 'MCA_Records_' . now()->format('Y-m-d_His') . '.xlsx';
 
-        return response()->streamDownload(function () use ($spreadsheet) {
-            $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
-            $writer->save('php://output');
-        }, $filename, [
-            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        return $this->workbook->stream($spreadsheet, $filename);
+    }
+
+    /**
+     * Downloads just the rows ticked on the page, as one workbook.
+     *
+     * Read-only on purpose: no document is generated, no file is stored and no
+     * status changes, so this is safe to run on records that are already printed.
+     */
+    public function bulkExport(Request $request)
+    {
+        Gate::authorize('viewAny', PatientRecord::class);
+
+        $validated = $request->validate([
+            'records' => ['required', 'array', 'min:1', 'max:5000'],
+            'records.*' => ['integer', 'distinct'],
         ]);
+
+        $records = $this->workbook->recordsInSelectionOrder($validated['records']);
+
+        if ($records === []) {
+            return back()->withErrors([
+                'export' => 'None of the selected records could be found. Refresh and try again.',
+            ]);
+        }
+
+        $count = count($records);
+        $spreadsheet = $this->workbook->build(
+            $records,
+            count($validated['records']) === $count
+                ? "{$count} selected record" . ($count === 1 ? '' : 's')
+                : "{$count} of " . count($validated['records']) . ' selected records found',
+            'MCA Patient Records Export'
+        );
+
+        $filename = 'MCA_Records_Selected_' . now()->format('Y-m-d_His') . '.xlsx';
+
+        return $this->workbook->stream($spreadsheet, $filename);
     }
 
     /** Shared search/filter logic for the list and the export. */

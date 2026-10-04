@@ -61,10 +61,11 @@ Route::middleware('auth')->group(function () {
     Route::get('records/{record}/generate', [DocumentGenerationController::class, 'generate'])
         ->name('records.generate');
     
-    // Bulk generate for the rows ticked in the record table. POST, and placed
-    // here so the literal segment is registered before any {record} pattern.
-    Route::post('records/bulk-generate', [DocumentGenerationController::class, 'bulkGenerate'])
-        ->name('records.bulk-generate');
+    // Export of just the rows ticked in the record table, as one workbook. POST,
+    // and placed here so the literal segment is registered before any {record}
+    // pattern.
+    Route::post('records/bulk-export', [PatientRecordController::class, 'bulkExport'])
+        ->name('records.bulk-export');
     
     Route::get('records/{record}/download', [DocumentGenerationController::class, 'download'])
         ->name('records.download');

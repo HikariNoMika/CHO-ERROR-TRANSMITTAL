@@ -12,47 +12,10 @@
     // +1 for the bulk-selection checkbox column.
     $columnCount = $isSuccess ? 7 : 9;
 
-    // How many rows on this page already have a document on disk. Re-generating
-    // one is allowed, but it replaces the current file, so the bulk bar offers a
-    // "skip" toggle and the confirm dialog spells out what will be replaced.
-    $withDocCount = $records->getCollection()
-        ->filter(fn ($record) => !empty($record->generated_file_path))->count();
-@endphp
+    @endphp
 
-    @if (session('bulk_result'))
-        @php
-            $bulk = session('bulk_result');
-            $bulkOk = count($bulk['generated']);
-            $bulkBad = count($bulk['failed']);
-        @endphp
-        <div class="bulk-result {{ $bulkBad > 0 ? 'is-partial' : 'is-ok' }}">
-            <p class="bulk-result-head">
-                @if ($bulkOk > 0)
-                    <strong>{{ $bulkOk }}</strong> document{{ $bulkOk === 1 ? '' : 's' }} generated to Excel.
-                @endif
-                @if ($bulkBad > 0)
-                    <strong>{{ $bulkBad }}</strong> not generated.
-                @endif
-                @if ($bulkOk === 0 && $bulkBad === 0)
-                    Nothing to do.
-                @endif
-            </p>
-            @if (!empty($bulk['failed']))
-                <p class="bulk-result-sub">Failed:</p>
-                <ul>
-                    @foreach (array_slice($bulk['failed'], 0, 10) as $line)
-                        <li>{{ $line }}</li>
-                    @endforeach
-                    @if (count($bulk['failed']) > 10)
-                        <li class="bulk-result-more">+{{ count($bulk['failed']) - 10 }} more…</li>
-                    @endif
-                </ul>
-            @endif
-        </div>
-    @endif
-
-    @if ($errors->has('generation'))
-        <div class="bulk-result is-error">{{ $errors->first('generation') }}</div>
+    @if ($errors->has('export'))
+        <div class="bulk-result is-error">{{ $errors->first('export') }}</div>
     @endif
     <div class="actions page-actions">
         <a href="{{ route('records.export', array_merge(request()->query(), ['type' => request('type', 'error')])) }}" class="btn-secondary">Export Excel</a>
@@ -95,7 +58,7 @@
          contains its own Delete form, and <form> inside <form> is invalid HTML
          that browsers silently drop. Row checkboxes therefore sit outside this
          form; JS copies the ticked record ids into #bulk-targets on submit. --}}
-    <form method="POST" action="{{ route('records.bulk-generate') }}" id="bulk-form" class="bulk-bar">
+    <form method="POST" action="{{ route('records.bulk-export') }}" id="bulk-form" class="bulk-bar">
         @csrf
         <div id="bulk-targets"></div>
 
@@ -104,14 +67,8 @@
         </label>
         <div class="bulk-actions">
             <span class="bulk-count"><strong id="bulk-count">0</strong> selected</span>
-            @if ($withDocCount > 0)
-                <label class="bulk-skip" title="Leave records that already have a document untouched">
-                    <input type="checkbox" id="bulk-skip-done" checked>
-                    <span>Skip already generated ({{ $withDocCount }})</span>
-                </label>
-            @endif
             <button type="button" class="btn-secondary" id="bulk-clear" disabled>Clear</button>
-            <button type="submit" class="btn-primary" id="bulk-go" disabled>Generate selected</button>
+            <button type="submit" class="btn-primary" id="bulk-go" disabled>Export selected</button>
         </div>
     </form>
 
@@ -140,11 +97,11 @@
                 @forelse ($records as $record)
                     <tr>
                         <td class="pick-col">
-                            {{-- Every record is selectable, whatever its status;
-                                 the server authorizes each one before generating. --}}
-                            <input type="checkbox" value="{{ $record->id }}" class="row-pick" data-doc="{{ $record->generated_file_path ? '1' : '0' }}" aria-label="Select {{ $record->patient_name }}">
-                        </td>
-                        <td><strong>{{ $record->patient_name }}</strong></td>
+                            {{-- Every record is selectable, whatever its status; the export is
+                                 read-only and ignores document state. --}}
+<input type="checkbox" value="{{ $record->id }}" class="row-pick" aria-label="Select {{ $record->patient_name }}">
+                    </td>
+                    <td><strong>{{ $record->patient_name }}</strong></td>
                         <td>{{ $record->birthdate?->format('M j, Y') ?? '—' }}</td>
                         <td><span class="mono">{{ $record->philhealth_id }}</span></td>
                         @unless ($isSuccess)
@@ -189,7 +146,7 @@
         @forelse ($records as $record)
             <div class="card">
                 <div class="page-head card-head">
-                    <input type="checkbox" value="{{ $record->id }}" class="row-pick" data-doc="{{ $record->generated_file_path ? '1' : '0' }}" aria-label="Select {{ $record->patient_name }}">
+                    <input type="checkbox" value="{{ $record->id }}" class="row-pick" aria-label="Select {{ $record->patient_name }}">
                     <strong>{{ $record->patient_name }}</strong>
                     @unless ($isSuccess)
                         <span class="badge {{ ($record->record_type ?? 'error') === 'success' ? 'badge-green' : 'badge-red' }}">{{ ucfirst($record->record_type ?? 'error') }}</span>
@@ -248,7 +205,7 @@
         update();
     })();
 
-    // Bulk selection for generating several records to Excel in one submit.
+    // Bulk selection: export the ticked records to one workbook.
     (function () {
         var form = document.getElementById('bulk-form');
         if (!form) return;
@@ -259,7 +216,6 @@
         var count = document.getElementById('bulk-count');
         var go = document.getElementById('bulk-go');
         var clear = document.getElementById('bulk-clear');
-        var skipDone = document.getElementById('bulk-skip-done');
 
         // The table and the mobile card list both render a checkbox per record,
         // and only one of the two is visible at a time. Every operation is scoped
@@ -269,23 +225,12 @@
             return all.filter(function (p) { return p.offsetParent !== null; });
         }
 
-        function skipping() {
-            return !!(skipDone && skipDone.checked);
-        }
-
-        // Everything currently ticked, including records the skip filter drops.
-        function ticked() {
-            return visible().filter(function (p) { return p.checked; });
-        }
-
-        // The ids that will actually be generated: distinct, and with
-        // already-generated records removed while the skip toggle is on.
+        // Everything currently ticked, de-duplicated. The export is read-only, so
+        // every ticked row is included whatever state its document is in.
         function selectedIds() {
-            var skip = skipping();
             var seen = {};
-            ticked().forEach(function (p) {
-                if (skip && p.dataset.doc === '1') return;
-                seen[p.value] = true;
+            visible().forEach(function (p) {
+                if (p.checked) { seen[p.value] = true; }
             });
             return Object.keys(seen);
         }
@@ -295,7 +240,7 @@
             if (count) count.textContent = ids.length;
             if (go) {
                 go.disabled = ids.length === 0;
-                go.textContent = 'Generate selected';
+                go.textContent = 'Export selected';
             }
             if (clear) clear.disabled = ids.length === 0;
 
@@ -327,13 +272,9 @@
             });
         }
 
-        if (skipDone) {
-            skipDone.addEventListener('change', sync);
-        }
-
         function resetBusy() {
             if (go) {
-                go.textContent = 'Generate selected';
+                go.textContent = 'Export selected';
                 go.disabled = selectedIds().length === 0;
             }
             if (clear) clear.disabled = true;
@@ -347,23 +288,13 @@
                 return;
             }
 
-            // Spell out the consequence, because re-generating a record replaces
-            // the document it already has.
-            var marked = ticked().filter(function (p) { return p.dataset.doc === '1'; }).length;
             var many = function (n, one, many_) { return n + ' ' + (n === 1 ? one : many_); };
             var lines = [
-                'Generate ' + many(ids.length, 'record', 'records') + ' to Excel?',
+                'Export ' + many(ids.length, 'record', 'records') + ' to Excel?',
                 '',
-                'Each selected record will produce its own document.'
+                'The selected records go into one spreadsheet, one row each.',
+                'Nothing is generated and no record is changed.'
             ];
-
-            if (marked > 0) {
-                lines.push('');
-                lines.push(skipping()
-                    ? many(marked, 'already generated record', 'already generated records') + ' will be skipped.'
-                    : 'Warning: ' + many(marked, 'record already', 'records already') +
-                      ' generated. The existing document' + (marked === 1 ? '' : 's') + ' will be replaced.');
-            }
 
             if (!window.confirm(lines.join('\n'))) {
                 e.preventDefault();
@@ -385,14 +316,14 @@
             // just looks frozen and invites a second click.
             if (go) {
                 go.disabled = true;
-                go.textContent = 'Generating… ' + many(ids.length, 'record', 'records') + '…';
+                go.textContent = 'Exporting… ' + many(ids.length, 'record', 'records') + '…';
             }
             if (clear) clear.disabled = true;
             document.body.classList.add('is-busy');
         });
 
         // Coming back via the back/forward cache would otherwise restore the page
-        // with the button still stuck on "Generating…".
+        // with the button still stuck on "Exporting…".
         window.addEventListener('pageshow', function (e) {
             if (e.persisted) {
                 resetBusy();
