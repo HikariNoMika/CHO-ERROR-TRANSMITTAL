@@ -43,3 +43,7 @@ Thumbs.db
 # Screenshots may capture live patient records in the UI. Not verified safe, so
 # excluded by default - remove this line to include them deliberately.
 /Screenshot *.png
+
+# Excel lock files, created while a workbook is open in Excel.
+~$*.xlsx
+~$*.xls

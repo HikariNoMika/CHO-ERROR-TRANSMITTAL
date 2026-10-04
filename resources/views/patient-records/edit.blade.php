@@ -100,6 +100,18 @@
     var imageFieldReaders = {};
     var activeImageField = 'image_with_id';
 
+    // Shows which drop zone a pasted image will land in. Mirrors
+    // activeImageField so the highlight always reflects the real target.
+    function syncPasteTarget() {
+        var zones = document.querySelectorAll('[data-image-dropzone]');
+        for (var i = 0; i < zones.length; i++) {
+            var zone = zones[i];
+            var isTarget = zone.getAttribute('data-image-dropzone') === activeImageField
+                && !zone.classList.contains('locked');
+            zone.classList.toggle('paste-target', isTarget);
+        }
+    }
+
     function setupImageField(fieldName, base64FieldName) {
         var dropZone = document.getElementById(fieldName + '-dropzone');
         var fileInput = document.getElementById(fieldName);
@@ -122,6 +134,7 @@
             dropZone.setAttribute('aria-disabled', hasImage ? 'true' : 'false');
             dropZone.title = hasImage ? 'Remove the current image first to replace it' : '';
             fileInput.disabled = hasImage;
+            syncPasteTarget();
         }
 
         function zoneLocked() {
@@ -153,13 +166,14 @@
 
         dropZone.addEventListener('click', function (e) {
             activeImageField = fieldName;
+            syncPasteTarget();
             if (zoneLocked()) return;
             if (e.target.closest('button')) return;
             fileInput.click();
         });
-        dropZone.addEventListener('focus', function () { activeImageField = fieldName; });
-        dropZone.addEventListener('mouseenter', function () { activeImageField = fieldName; });
-        preview.addEventListener('mouseenter', function () { activeImageField = fieldName; });
+        dropZone.addEventListener('focus', function () { activeImageField = fieldName; syncPasteTarget(); });
+        dropZone.addEventListener('mouseenter', function () { activeImageField = fieldName; syncPasteTarget(); });
+        preview.addEventListener('mouseenter', function () { activeImageField = fieldName; syncPasteTarget(); });
         dropZone.addEventListener('keydown', function (e) {
             if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput.click(); }
         });
@@ -238,6 +252,7 @@
     document.addEventListener('DOMContentLoaded', function () {
         setupImageField('image_with_id', 'image_with_id_base64');
         setupImageField('empanelment_error_image', 'empanelment_error_image_base64');
+            syncPasteTarget();
 
         var form = document.getElementById('record-form');
         if (form) {

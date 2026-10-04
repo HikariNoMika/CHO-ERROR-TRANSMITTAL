@@ -10,7 +10,7 @@
     </div>
 
     <div id="{{ $fieldName }}-dropzone" data-image-dropzone="{{ $fieldName }}" class="dropzone" tabindex="0" role="button" aria-label="Upload {{ $label }}">
-<div class="image-upload">
+        <div>
             <p>Paste image here <kbd>Ctrl + V</kbd></p>
             <p style="color:#6b7280;font-size:13px;">or</p>
             <span class="btn-primary" style="pointer-events:none;">Upload Image</span>

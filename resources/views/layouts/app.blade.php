@@ -383,8 +383,10 @@
 
         .dropzone { border: 2px dashed #d1d5db; border-radius: 8px; background: #f9fafb; padding: 1.5rem; text-align: center; cursor: pointer; }
         .dropzone.armed { border-color: #2563eb; background: #eff6ff; }
+        .dropzone.paste-target { border-color: #2563eb; background: #eff6ff; box-shadow: 0 0 0 3px rgba(37, 99, 235, .12); }
+        .dropzone.paste-target kbd { background: #2563eb; border-color: #1d4ed8; color: #fff; }
         .dropzone.locked { opacity: .5; cursor: not-allowed; }
-        .dropzone img.preview { max-width: 100%; max-height: 220px; border: 1px solid #e5e7eb; border-radius: 6px; }
+        .image-upload img.preview { max-width: 100%; max-height: 220px; border: 1px solid #e5e7eb; border-radius: 6px; }
         kbd { padding: .1rem .4rem; font-size: 12px; background: #fff; border: 1px solid #d1d5db; border-radius: 4px; }
         code { font-family: ui-monospace, monospace; font-size: 13px; }
     </style>
