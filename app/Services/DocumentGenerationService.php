@@ -100,11 +100,43 @@ class DocumentGenerationService
                             $cell->setValue($newValue);
                             // Reapply style to maintain formatting
                             $cell->setStyle($style);
+
+                            // Let Excel shrink the font itself if the value no
+                            // longer fits the column. The template keeps its own
+                            // font size unless the text really is too wide.
+                            if ($this->shouldAutofitField($value)) {
+                                $alignment = $cell->getAlignment();
+                                $alignment->setWrapText(false);
+                                $alignment->setShrinkToFit(true);
+                                $cell->setAlignment($alignment);
+                            }
                         }
                     }
                 }
             }
         }
+    }
+
+    protected function shouldAutofitField(string $rawCellText): bool
+    {
+        $config = config('mca.autofit');
+        if (!($config['enabled'] ?? true)) {
+            return false;
+        }
+        $fields = $config['fields'];
+        if (in_array('*', $fields, true)) {
+            return true;
+        }
+        preg_match_all('/\{\{(\w+)\}\}/', $rawCellText, $matches);
+
+        foreach ($matches[1] as $name) {
+            $canonical = PlaceholderMap::canonicalText($name) ?? $name;
+            if (in_array($canonical, $fields, true)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     protected function replacePlaceholdersInText(string $text, array $data): string

@@ -31,6 +31,10 @@ class XlsxDirectGenerationService
     protected array $warnings = [];
     protected array $unknownPlaceholders = [];
 
+    public function __construct(protected TextAutofitService $autofit)
+    {
+    }
+
     /**
      * @return array{path: string, warnings: string[]}
      */
@@ -155,7 +159,10 @@ class XlsxDirectGenerationService
             if (strpos($combined, '{{') === false) {
                 continue;
             }
-            $replaced = preg_replace_callback('/\{\{(\w+)\}\}/', function ($m) use ($resolve) {
+            $matched = [];
+            $replaced = preg_replace_callback('/\{\{(\w+)\}\}/', function ($m) use ($resolve, &$matched) {
+                $matched[] = $m[1];
+
                 return $resolve($m[1]);
             }, $combined);
             if ($replaced === $combined) {
@@ -166,6 +173,103 @@ class XlsxDirectGenerationService
                 $nodes->item($i)->nodeValue = '';
             }
         }
+    }
+
+    /**
+     * Shrinks the font of a shape's text when the value is too wide for the box,
+     * leaving the shape itself exactly where and as large as the template put it.
+     *
+     * Excel only recalculates shape autofit when the shape is edited, so the
+     * scale is computed here and written into the drawing.
+     */
+    protected function autofitShapeText(DOMXPath $xp, \DOMNode $paragraph, string $text, array $matchedPlaceholders): void
+    {
+        $config = config('mca.autofit');
+        if (!($config['enabled'] ?? true) || trim($text) === '') {
+            return;
+        }
+        if (!$this->shouldAutofit($matchedPlaceholders, $config['fields'])) {
+            return;
+        }
+
+        // The container is a paragraph; geometry lives on the ancestor shape.
+        $shape = $xp->query('ancestor::xdr:sp', $paragraph)->item(0);
+        if ($shape === null) {
+            return;
+        }
+
+        $ext = $xp->query('./xdr:spPr/a:xfrm/a:ext', $shape)->item(0);
+        $bodyPr = $xp->query('./xdr:txBody/a:bodyPr', $shape)->item(0);
+        if ($ext === null || $bodyPr === null) {
+            return;
+        }
+
+        $runProps = $xp->query('.//a:rPr', $shape)->item(0);
+        $fontSize = $runProps && $runProps->hasAttribute('sz')
+            ? ((int) $runProps->getAttribute('sz')) / 100
+            : 11.0;
+        $bold = $runProps && in_array($runProps->getAttribute('b'), ['1', 'true'], true);
+
+        $scale = $this->autofit->fontScaleFor(
+            $text,
+            $fontSize,
+            $this->autofit->availableWidthInPoints(
+                (int) $ext->getAttribute('cx'),
+                $bodyPr->hasAttribute('lIns') ? (int) $bodyPr->getAttribute('lIns') : TextAutofitService::DEFAULT_L_INS,
+                $bodyPr->hasAttribute('rIns') ? (int) $bodyPr->getAttribute('rIns') : TextAutofitService::DEFAULT_R_INS
+            ) * ($config['width_factor'] ?? 1.0),
+            $bold,
+            (float) $config['min_font_pt'],
+            (float) $config['tolerance']
+        );
+
+        if ($scale === null) {
+            return;
+        }
+
+        // Autofit is inert while wrap is "none", so fall back to the default.
+        if ($bodyPr->getAttribute('wrap') === 'none') {
+            $bodyPr->removeAttribute('wrap');
+        }
+
+        // Exactly one autofit child is permitted; drop whatever was there.
+        foreach (['a:noAutofit', 'a:normAutofit', 'a:spAutoFit'] as $existing) {
+            foreach (iterator_to_array($xp->query($existing, $bodyPr)) as $node) {
+                $bodyPr->removeChild($node);
+            }
+        }
+
+        $norm = $bodyPr->ownerDocument->createElementNS(self::A_NS, 'a:normAutofit');
+        $norm->setAttribute('fontScale', (string) $scale);
+        $bodyPr->appendChild($norm);
+
+        if ($config['warn'] ?? true) {
+            $this->warnings[] = sprintf(
+                'Text was condensed to %.1fpt to fit its box: "%s".',
+                $fontSize * $scale / 100000,
+                $text
+            );
+        }
+    }
+
+    /**
+     * True when any matched placeholder belongs to the configured field list.
+     *
+     * @param  string[]  $fields
+     */
+    protected function shouldAutofit(array $matchedPlaceholders, array $fields): bool
+    {
+        if (in_array('*', $fields, true)) {
+            return true;
+        }
+        foreach ($matchedPlaceholders as $name) {
+            $canonical = PlaceholderMap::canonicalText($name) ?? $name;
+            if (in_array($canonical, $fields, true)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     protected function loadXml(string $xml): ?DOMDocument
@@ -255,7 +359,12 @@ class XlsxDirectGenerationService
                 if (strpos($combined, '{{') === false) {
                     continue;
                 }
-                $replaced = preg_replace_callback('/\{\{(\w+)\}\}/', fn ($m) => $this->resolveText($m[1], $values), $combined);
+                $matched = [];
+                $replaced = preg_replace_callback('/\{\{(\w+)\}\}/', function ($m) use ($values, &$matched) {
+                    $matched[] = $m[1];
+
+                    return $this->resolveText($m[1], $values);
+                }, $combined);
                 if ($replaced === $combined) {
                     continue;
                 }
@@ -263,6 +372,7 @@ class XlsxDirectGenerationService
                 for ($i = 1; $i < $nodes->length; $i++) {
                     $nodes->item($i)->nodeValue = '';
                 }
+                $this->autofitShapeText($xp, $para, $replaced, $matched);
             }
 
             $zip->addFromString($drawingFile, $dom->saveXML());
