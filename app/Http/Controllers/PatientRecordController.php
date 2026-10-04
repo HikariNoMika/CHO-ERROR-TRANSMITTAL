@@ -273,7 +273,7 @@ class PatientRecordController extends Controller
                 \Illuminate\Support\Facades\Storage::disk('private')->delete($record->image_with_id_path);
             }
             $data['image_with_id_path'] = $request->file('image_with_id')->store('patient-images/' . now()->format('Y/m'), 'private');
-        } elseif ($request->filled('remove_image_with_id')) {
+        } elseif ($request->boolean('remove_image_with_id')) {
             if ($record->image_with_id_path) {
                 \Illuminate\Support\Facades\Storage::disk('private')->delete($record->image_with_id_path);
             }
@@ -285,7 +285,7 @@ class PatientRecordController extends Controller
                 \Illuminate\Support\Facades\Storage::disk('private')->delete($record->empanelment_error_image_path);
             }
             $data['empanelment_error_image_path'] = $request->file('empanelment_error_image')->store('patient-images/' . now()->format('Y/m'), 'private');
-        } elseif ($request->filled('remove_empanelment_error_image')) {
+        } elseif ($request->boolean('remove_empanelment_error_image')) {
             if ($record->empanelment_error_image_path) {
                 \Illuminate\Support\Facades\Storage::disk('private')->delete($record->empanelment_error_image_path);
             }

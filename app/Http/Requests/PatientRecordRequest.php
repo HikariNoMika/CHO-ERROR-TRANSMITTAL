@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Models\PatientRecord;
 use App\Models\Template;
 use App\Services\PlaceholderMap;
 use Illuminate\Foundation\Http\FormRequest;
@@ -47,10 +48,25 @@ class PatientRecordRequest extends FormRequest
             $needsId = $required->contains(fn ($p) => PlaceholderMap::imageSlot($p) === 'id');
             $needsError = $required->contains(fn ($p) => PlaceholderMap::imageSlot($p) === 'error');
 
-            if (!$isSuccess && $needsId && !$this->hasFile('image_with_id') && !$this->filled('image_with_id_base64')) {
+            // On edit the image slots show the already-stored picture and are
+            // locked, so no new file is posted. Count that as provided unless the
+            // user ticked the box to remove it.
+            $record = $this->route('record');
+            if (!($record instanceof PatientRecord)) {
+                $record = null;
+            }
+
+            $idProvided = $this->hasFile('image_with_id')
+                || $this->filled('image_with_id_base64')
+                || ($record && $record->image_with_id_path && !$this->boolean('remove_image_with_id'));
+            $errorProvided = $this->hasFile('empanelment_error_image')
+                || $this->filled('empanelment_error_image_base64')
+                || ($record && $record->empanelment_error_image_path && !$this->boolean('remove_empanelment_error_image'));
+
+            if (!$isSuccess && $needsId && !$idProvided) {
                 $validator->errors()->add('image_with_id', 'ID image is required to generate this template.');
             }
-            if (!$isSuccess && $needsError && !$this->hasFile('empanelment_error_image') && !$this->filled('empanelment_error_image_base64')) {
+            if (!$isSuccess && $needsError && !$errorProvided) {
                 $validator->errors()->add('empanelment_error_image', 'Empanelment error image is required to generate this template.');
             }
         });
