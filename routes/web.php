@@ -2,9 +2,10 @@
 
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\DashboardController;
-use App\Http\Controllers\PatientRecordController;
 use App\Http\Controllers\DocumentGenerationController;
+use App\Http\Controllers\PatientRecordController;
 use App\Http\Controllers\SettingController;
+use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 
 Route::redirect('/', '/login');
@@ -55,32 +56,32 @@ Route::middleware('auth')->group(function () {
     Route::resource('records', PatientRecordController::class)
         ->names('records')
         ->except(['destroy']);
-    
+
     Route::delete('records/{record}', [PatientRecordController::class, 'destroy'])
         ->name('records.destroy');
 
     Route::get('records/{record}/image/{type}', [PatientRecordController::class, 'image'])
         ->name('records.image')
         ->where('type', 'id|error');
-    
+
     Route::get('records/{record}/print', [DocumentGenerationController::class, 'printView'])
         ->name('records.print');
-    
+
     Route::get('records/{record}/generate', [DocumentGenerationController::class, 'generate'])
         ->name('records.generate');
-    
+
     // Export of just the rows ticked in the record table, as one workbook. POST,
     // and placed here so the literal segment is registered before any {record}
     // pattern.
     Route::post('records/bulk-export', [PatientRecordController::class, 'bulkExport'])
         ->name('records.bulk-export');
-    
+
     Route::get('records/{record}/download', [DocumentGenerationController::class, 'download'])
         ->name('records.download');
-    
+
     Route::post('records/{record}/mark-printed', [DocumentGenerationController::class, 'markAsPrinted'])
         ->name('records.mark-printed');
-    
+
     Route::get('generations/{generation}/download', [DocumentGenerationController::class, 'downloadGeneration'])
         ->name('generations.download');
 
@@ -88,5 +89,13 @@ Route::middleware('auth')->group(function () {
     Route::middleware('role:admin')->group(function () {
         Route::get('/settings', [SettingController::class, 'index'])->name('settings.index');
         Route::post('/settings', [SettingController::class, 'update'])->name('settings.update');
+
+        // User accounts. Admin only; the policy additionally refuses the two
+        // changes that would lock everyone out.
+        Route::get('/users', [UserController::class, 'index'])->name('users.index');
+        Route::get('/users/create', [UserController::class, 'create'])->name('users.create');
+        Route::post('/users', [UserController::class, 'store'])->name('users.store');
+        Route::get('/users/{user}/edit', [UserController::class, 'edit'])->name('users.edit');
+        Route::put('/users/{user}', [UserController::class, 'update'])->name('users.update');
     });
 });

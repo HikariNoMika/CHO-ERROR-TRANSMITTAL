@@ -4,9 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Models\PatientRecord;
 use App\Support\RecordType;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
-use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
 {
@@ -112,7 +113,13 @@ class DashboardController extends Controller
             $buckets[$k] = array_fill_keys(array_merge($slugs, ['total']), 0);
         }
 
-        $expr = $byHour ? "strftime('%H', created_at)" : "date(created_at)";
+        // SQLite and MySQL/MariaDB date functions differ, so the bucket expression has
+        // to follow the driver rather than assume one of them. Both MySQL and
+        // MariaDB share HOUR() and DATE().
+        $sqlish = in_array(DB::connection()->getDriverName(), ['mysql', 'mariadb'], true);
+        $expr = $sqlish
+            ? ($byHour ? 'HOUR(created_at)' : 'DATE(created_at)')
+            : ($byHour ? "strftime('%H', created_at)" : 'date(created_at)');
 
         PatientRecord::whereBetween('created_at', [$from, $to])
             ->selectRaw("record_type, {$expr} as bucket, count(*) as aggregate")
@@ -120,7 +127,7 @@ class DashboardController extends Controller
             ->get()
             ->each(function ($row) use (&$buckets, $slugs) {
                 $key = (string) $row->bucket;
-                if (!array_key_exists($key, $buckets)) {
+                if (! array_key_exists($key, $buckets)) {
                     return;
                 }
                 $n = (int) $row->aggregate;

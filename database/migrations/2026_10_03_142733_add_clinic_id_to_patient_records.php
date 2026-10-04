@@ -9,7 +9,11 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('patient_records', function (Blueprint $table) {
-            $table->foreignId('clinic_id')->nullable()->after('philhealth_id')->constrained('clinics')->onDelete('set null');
+            // No foreign key: the clinics table this pointed at was never created
+            // and is dropped again further down the chain. SQLite tolerated the
+            // dangling reference; MySQL/MariaDB reject it outright, so the column
+            // is added plain and the key left off.
+            $table->unsignedBigInteger('clinic_id')->nullable()->after('philhealth_id');
             $table->dropColumn('head_of_clinic');
         });
     }
@@ -18,7 +22,6 @@ return new class extends Migration
     {
         Schema::table('patient_records', function (Blueprint $table) {
             $table->string('head_of_clinic')->after('philhealth_id');
-            $table->dropForeign(['clinic_id']);
             $table->dropColumn('clinic_id');
         });
     }

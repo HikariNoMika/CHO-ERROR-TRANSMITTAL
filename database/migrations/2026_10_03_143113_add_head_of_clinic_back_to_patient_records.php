@@ -9,7 +9,8 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('patient_records', function (Blueprint $table) {
-            $table->dropForeign(['clinic_id']);
+            // No foreign key to drop: clinic_id was added without one, since the
+            // clinics table it referenced never existed.
             $table->dropColumn('clinic_id');
             $table->string('head_of_clinic')->after('philhealth_id');
         });
@@ -19,7 +20,7 @@ return new class extends Migration
     {
         Schema::table('patient_records', function (Blueprint $table) {
             $table->dropColumn('head_of_clinic');
-            $table->foreignId('clinic_id')->nullable()->after('philhealth_id')->constrained('clinics')->onDelete('set null');
+            $table->unsignedBigInteger('clinic_id')->nullable()->after('philhealth_id');
         });
     }
 };
