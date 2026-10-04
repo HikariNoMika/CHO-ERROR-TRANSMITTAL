@@ -243,14 +243,7 @@ class PatientRecordController extends Controller
 
         $record->load(['template', 'creator']);
 
-        // Paginated separately: the history table can grow without bound and
-        // the record header should not wait on every generation row.
-        $generations = $record->documentGenerations()
-            ->with('generator')
-            ->latest('generated_at')
-            ->paginate(10);
-
-        return view('patient-records.show', compact('record', 'generations'));
+        return view('patient-records.show', compact('record'));
     }
 
     public function edit(PatientRecord $record)
