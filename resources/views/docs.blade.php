@@ -28,31 +28,40 @@
         <h3>Record lifecycle</h3>
         <table>
             <thead>
-                <tr><th>Status</th><th>Meaning</th><th>What you can do</th></tr>
+                <tr><th>Status</th><th>Meaning</th><th>Actions in the list</th><th>Actions on the record page</th></tr>
             </thead>
             <tbody>
                 <tr>
                     <td><strong>Draft</strong></td>
-                    <td>Captured but not yet turned into a document.</td>
-                    <td>Edit, generate, delete.</td>
+                    <td>Captured, but no document has been produced yet.</td>
+                    <td>View, Edit, Delete</td>
+                    <td>Generate &amp; Print, Edit</td>
                 </tr>
                 <tr>
                     <td><strong>Generated</strong></td>
                     <td>An Excel workbook exists for this record.</td>
-                    <td>View, print, download, re-generate.</td>
+                    <td>View, Edit, Print, Delete</td>
+                    <td>Print, Download Excel, Mark as Printed, Edit</td>
                 </tr>
                 <tr>
                     <td><strong>Printed</strong></td>
-                    <td>The document has been printed and submitted.</td>
-                    <td>View, print, download, re-generate.</td>
+                    <td>A staff member has marked the document as printed and submitted.</td>
+                    <td>View, Edit, Print, Delete</td>
+                    <td>Print, Download Excel, Edit</td>
                 </tr>
             </tbody>
         </table>
 
+        <p>
+            The list deliberately offers only a short set of actions. Open a record to reach the
+            full set &mdash; that is where generation, downloading and marking as printed live.
+        </p>
+
         <div class="docs-note">
-            Every generation is kept. Re-generating a record creates a <em>new</em> workbook and a
-            new history entry &mdash; it never overwrites the previous one, so an earlier submission
-            can always still be downloaded.
+            <strong>Every generation is kept.</strong> Re-generating a record creates a <em>new</em>
+            workbook and a new history entry &mdash; it never overwrites the previous one. Past
+            workbooks stay listed under <strong>Generation History</strong> on the record page, with
+            the template version and the user who generated it, and each remains downloadable.
         </div>
 
         <h3>Required fields</h3>
@@ -103,7 +112,7 @@
             <li><strong>Select records.</strong> Tick individual checkboxes, or use the header checkbox to select every row on the page. Bulk actions always apply to the page you are looking at.</li>
             <li><strong>Generate.</strong> Press <em>Generate selected</em>. A confirmation tells you exactly how many records will be produced and whether any already-generated documents will be replaced.</li>
             <li><strong>Review the result banner.</strong> It reports how many succeeded and names every failure with its reason.</li>
-            <li><strong>Print or download</strong> from the record's Actions.</li>
+            <li><strong>Print or download.</strong> Open the record &mdash; the list itself only carries View, Edit, Print and Delete.</li>
         </ol>
 
         <h3>Bulk generation</h3>
@@ -125,11 +134,17 @@
             history and remains downloadable, but staff will download the newest one by default.
         </div>
 
-        <h3>Printing</h3>
+        <h3>Printing and marking as printed</h3>
         <p>
-            The <em>Print</em> action opens the document in a print-ready view. Once printed, use
-            <em>Mark as Printed</em> to move the record to <strong>printed</strong> status so the
-            queue stays accurate.
+            Open a record to reach the document actions. A draft offers <em>Generate &amp; Print</em>;
+            once a document exists you get <em>Print</em> and <em>Download Excel</em>.
+        </p>
+        <p>
+            <strong>Mark as Printed</strong> appears on the record page only while the record is
+            <strong>Generated</strong>. It is a manual flag you set once the document has actually
+            been printed and submitted, and it is <strong>one-way</strong> &mdash; a printed record
+            cannot be sent back to Generated. Use it to keep the outstanding queue honest rather
+            than as an automatic step.
         </p>
 
         <h3>Managing templates (Settings)</h3>
