@@ -84,7 +84,7 @@
         .alert ul { margin: .25rem 0 0; padding-left: 1.1rem; }
 
         /* ---------- Faithful Excel preview ---------- */
-        .xlsx-preview { position: relative; width: 100%; background: #fff; overflow: hidden; }
+        .xlsx-preview { position: relative; width: 100%; background: #fff; overflow: hidden; container-type: inline-size; }
 
         /* ---------- Generic summary ---------- */
         .doc-head { text-align: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 2px solid #111827; }

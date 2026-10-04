@@ -45,7 +45,12 @@
                     @else
                         <div style="position:absolute;left:{{ $box['x'] / $preview['width'] * 100 }}%;top:{{ $box['y'] / $preview['height'] * 100 }}%;width:{{ $box['w'] / $preview['width'] * 100 }}%;height:{{ $box['h'] / $preview['height'] * 100 }}%;overflow:hidden;">
                             @foreach ($box['lines'] as $line)
-                                <div style="text-align:{{ $line['align'] }};font-size:{{ $line['style']['size'] }}pt;{{ $line['style']['bold'] ? 'font-weight:bold;' : '' }}color:#{{ $line['style']['color'] }};line-height:1.25;white-space:pre-wrap;">{{ $line['text'] }}</div>
+                                {{-- Font must scale with the sheet: shape geometry is expressed as a
+                                     percentage of the preview width, so a fixed pt size would shrink
+                                     relative to its box on narrow/printed output and clip. 1cqw is 1%
+                                     of the preview width, which keeps text and boxes in the same
+                                     proportion the workbook uses. --}}
+                                <div style="text-align:{{ $line['align'] }};font-size:{{ round($line['style']['size'] * 4 / 3 / $preview['width'] * 100, 4) }}cqw;{{ $line['style']['bold'] ? 'font-weight:bold;' : '' }}color:#{{ $line['style']['color'] }};line-height:1.25;white-space:pre-wrap;">{{ $line['text'] }}</div>
                             @endforeach
                         </div>
                     @endif

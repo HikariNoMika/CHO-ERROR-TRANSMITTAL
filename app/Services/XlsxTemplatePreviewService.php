@@ -22,8 +22,10 @@ class XlsxTemplatePreviewService
     const A_NS = 'http://schemas.openxmlformats.org/drawingml/2006/main';
     const REL_NS = 'http://schemas.openxmlformats.org/package/2006/relationships';
 
-    public function __construct(protected XlsxDirectGenerationService $direct)
-    {
+    public function __construct(
+        protected XlsxDirectGenerationService $direct,
+        protected TextAutofitService $autofit
+    ) {
     }
 
     /**
@@ -187,6 +189,8 @@ class XlsxTemplatePreviewService
             ];
         }
 
+        $lines = $this->autofitLines($xp, $shape, $fullText, $lines);
+
         return array_merge($geom, ['kind' => 'text', 'lines' => $lines]);
     }
 
@@ -209,6 +213,83 @@ class XlsxTemplatePreviewService
             $style['color'] = $srgb->item(0)->getAttribute('val');
         }
         return $style;
+    }
+
+    /**
+     * Applies the same shrink-to-fit the generator applies, so the preview and
+     * the printed page match what Excel renders.
+     *
+     * The preview is built from the template, which carries no fontScale yet, so
+     * the measurement has to be repeated here. Excel keeps a single scale per
+     * shape, so the most constrained paragraph wins.
+     */
+    protected function autofitLines(DOMXPath $xp, $shape, string $rawText, array $lines): array
+    {
+        $config = config('mca.autofit');
+        if (!($config['enabled'] ?? true) || $lines === []) {
+            return $lines;
+        }
+
+        if (!$this->shouldAutofitText($rawText, $config['fields'] ?? [])) {
+            return $lines;
+        }
+
+        $ext = $xp->query('./xdr:spPr/a:xfrm/a:ext', $shape)->item(0);
+        $bodyPr = $xp->query('./xdr:txBody/a:bodyPr', $shape)->item(0);
+        if ($ext === null || $bodyPr === null) {
+            return $lines;
+        }
+
+        $available = $this->autofit->availableWidthInPoints(
+            (int) $ext->getAttribute('cx'),
+            $bodyPr->hasAttribute('lIns') ? (int) $bodyPr->getAttribute('lIns') : TextAutofitService::DEFAULT_L_INS,
+            $bodyPr->hasAttribute('rIns') ? (int) $bodyPr->getAttribute('rIns') : TextAutofitService::DEFAULT_R_INS
+        ) * ($config['width_factor'] ?? 1.0);
+
+        $scale = null;
+        foreach ($lines as $line) {
+            $candidate = $this->autofit->fontScaleFor(
+                $line['text'],
+                (float) $line['style']['size'],
+                $available,
+                (bool) $line['style']['bold'],
+                (float) ($config['min_font_pt'] ?? 8.0),
+                (float) ($config['tolerance'] ?? 1.02)
+            );
+            if ($candidate !== null && ($scale === null || $candidate < $scale)) {
+                $scale = $candidate;
+            }
+        }
+
+        if ($scale === null) {
+            return $lines;
+        }
+
+        $factor = $scale / 100000;
+        foreach ($lines as $i => $line) {
+            $lines[$i]['style']['size'] = max(6, round($line['style']['size'] * $factor, 2));
+        }
+
+        return $lines;
+    }
+
+    /** Mirrors the generator's guard so preview and workbook autofit the same shapes. */
+    protected function shouldAutofitText(string $rawText, array $fields): bool
+    {
+        if (in_array('*', $fields, true)) {
+            return true;
+        }
+        if (!preg_match_all('/\{\{(\w+)\}\}/', $rawText, $m)) {
+            return false;
+        }
+        foreach ($m[1] as $name) {
+            $canonical = PlaceholderMap::canonicalText($name) ?? $name;
+            if (in_array($canonical, $fields, true)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /** EMU geometry of a shape's xfrm → px at 96dpi. */
