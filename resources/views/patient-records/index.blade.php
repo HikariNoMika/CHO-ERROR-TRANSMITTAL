@@ -1,30 +1,35 @@
 @extends('layouts.app')
 
 @section('page-title')
-    <h2 class="page-title">{{ request('type') === 'success' ? 'PCU Success Records' : 'PCU Error Records' }}</h2>
+    <h2 class="page-title">{{ \App\Support\RecordType::plural(request('type')) }}</h2>
 @endsection
 
 @section('content')
 @php
+    $type = \App\Support\RecordType::normalise(request('type'));
     // Success records only ever carry the four log fields (name, birthdate,
-    // PIN, success code), so the table drops the error-only columns.
-    $isSuccess = request('type') === 'success';
-    // +1 for the bulk-selection checkbox column.
-    $columnCount = $isSuccess ? 7 : 9;
+    // PIN, success code), so the table drops the error-only columns. Medical
+    // mission records keep the error layout, minus the PCU code column.
+    $isSuccess = $type === \App\Support\RecordType::SUCCESS;
+    $hasErrorCode = $type !== \App\Support\RecordType::MISSION;
+    // pick, name, birthdate, PhilHealth, created, actions; then the optional
+    // head-of-clinic and type columns (both hidden for success) and the code
+    // column (absent for medical mission).
+    $columnCount = 6 + ($isSuccess ? 0 : 2) + ($hasErrorCode ? 1 : 0);
 
-    @endphp
+@endphp
 
-    @if ($errors->has('export'))
+@if ($errors->has('export'))
         <div class="bulk-result is-error">{{ $errors->first('export') }}</div>
     @endif
     <div class="actions page-actions">
-        <a href="{{ route('records.export', array_merge(request()->query(), ['type' => request('type', 'error')])) }}" class="btn-secondary">Export Excel</a>
-        <a href="{{ request('type') === 'success' ? route('records.success.create') : route('records.error.create') }}" class="btn-primary">+ New Record</a>
+        <a href="{{ route('records.export', array_merge(request()->query(), ['type' => $type])) }}" class="btn-secondary">Export Excel</a>
+        <a href="{{ \App\Support\RecordType::createUrl($type) }}" class="btn-primary">+ New Record</a>
     </div>
 
     <div class="card sticky-toolbar" id="record-toolbar">
         <form method="GET" id="filter-form">
-            <input type="hidden" name="type" value="{{ request('type', 'error') }}">
+            <input type="hidden" name="type" value="{{ \App\Support\RecordType::normalise(request('type')) }}">
             <div class="filter-row">
                 <div class="field grow">
                     <label for="search">Search</label>
@@ -47,7 +52,7 @@
                     </select>
                 </div>
                 <div class="actions toolbar-actions">
-                    <a href="{{ request('type') === 'success' ? route('records.success') : route('records.error') }}" class="btn-secondary">Clear</a>
+                    <a href="{{ \App\Support\RecordType::indexUrl($type) }}" class="btn-secondary">Clear</a>
                     <button type="submit">Filter</button>
                 </div>
             </div>
@@ -89,7 +94,9 @@
                     @unless ($isSuccess)
                         <th class="hide-below-xl">Head of Clinic</th>
                     @endunless
-                    <th>{{ $isSuccess ? 'PCU Success Code' : 'PCU Error Code' }}</th>
+                    @if ($hasErrorCode)
+                        <th>{{ $isSuccess ? 'PCU Success Code' : 'PCU Error Code' }}</th>
+                    @endif
                     @unless ($isSuccess)
                         <th>Type</th>
                     @endunless
@@ -111,9 +118,11 @@
                         @unless ($isSuccess)
                             <td class="hide-below-xl">{{ $record->head_of_clinic }}</td>
                         @endunless
-                        <td><code>{{ $record->pcu_error_code ?? '—' }}</code></td>
+                        @if ($hasErrorCode)
+                            <td><code>{{ $record->pcu_error_code ?? '—' }}</code></td>
+                        @endif
                         @unless ($isSuccess)
-                            <td><span class="badge {{ ($record->record_type ?? 'error') === 'success' ? 'badge-green' : 'badge-red' }}">{{ ucfirst($record->record_type ?? 'error') }}</span></td>
+                            <td><span class="badge {{ \App\Support\RecordType::badge($record->record_type) }}">{{ \App\Support\RecordType::label($record->record_type) }}</span></td>
                         @endunless
                         <td class="hide-below-xl">{{ $record->created_at->format('M j, Y g:i A') }}</td>
                         <td class="align-right">
@@ -153,13 +162,15 @@
                     <input type="checkbox" value="{{ $record->id }}" class="row-pick" aria-label="Select {{ $record->patient_name }}">
                     <strong>{{ $record->patient_name }}</strong>
                     @unless ($isSuccess)
-                        <span class="badge {{ ($record->record_type ?? 'error') === 'success' ? 'badge-green' : 'badge-red' }}">{{ ucfirst($record->record_type ?? 'error') }}</span>
+                        <span class="badge {{ \App\Support\RecordType::badge($record->record_type) }}">{{ \App\Support\RecordType::label($record->record_type) }}</span>
                     @endunless
                     <span class="badge">{{ ucfirst($record->status) }}</span>
                 </div>
                 <div class="meta-line">
-                    {{ $record->birthdate?->format('M j, Y') ?? '—' }} · <span class="mono">{{ $record->philhealth_id }}</span> ·
-                    {{ $isSuccess ? 'Success Code' : 'PCU' }}: <code>{{ $record->pcu_error_code ?? '—' }}</code>
+                    {{ $record->birthdate?->format('M j, Y') ?? '—' }} · <span class="mono">{{ $record->philhealth_id }}</span>
+                    @if ($hasErrorCode)
+                        · {{ $isSuccess ? 'Success Code' : 'PCU' }}: <code>{{ $record->pcu_error_code ?? '—' }}</code>
+                    @endif
                 </div>
                 <div>
                     <span class="row-actions">

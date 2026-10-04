@@ -20,9 +20,11 @@
             <div class="fields">
                 <div class="field">
                     <label for="record_type">Record Type *</label>
+                    @php $currentType = old('record_type', $record->record_type ?? \App\Support\RecordType::DEFAULT); @endphp
                     <select name="record_type" id="record_type" required>
-                        <option value="error" {{ old('record_type', $record->record_type ?? 'error') === 'error' ? 'selected' : '' }}>PCU Error</option>
-                        <option value="success" {{ old('record_type', $record->record_type ?? 'error') === 'success' ? 'selected' : '' }}>PCU Success</option>
+                        @foreach (\App\Support\RecordType::slugs() as $slug)
+                            <option value="{{ $slug }}" {{ $currentType === $slug ? 'selected' : '' }}>{{ \App\Support\RecordType::label($slug) }}</option>
+                        @endforeach
                     </select>
                     @error('record_type')<p class="fielderror">{{ $message }}</p>@enderror
                 </div>

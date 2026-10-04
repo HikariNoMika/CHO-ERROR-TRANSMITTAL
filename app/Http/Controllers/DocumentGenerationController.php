@@ -8,6 +8,7 @@ use App\Services\DocumentGenerationService;
 use App\Services\PlaceholderMap;
 use App\Services\XlsxTemplatePreviewService;
 use App\Services\AuditLogService;
+use App\Support\RecordType;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
@@ -38,7 +39,7 @@ class DocumentGenerationController extends Controller
         $template = $record->template;
         $requiredFields = $template->fields()->where('is_required', true)->pluck('placeholder')->toArray();
 
-        $isSuccess = ($record->record_type ?? 'error') === 'success';
+        $isSuccess = ($record->record_type ?? RecordType::DEFAULT) === RecordType::SUCCESS;
         $missingFields = [];
         foreach ($requiredFields as $field) {
             $slot = PlaceholderMap::imageSlot($field);
@@ -48,6 +49,10 @@ class DocumentGenerationController extends Controller
             }
             if ($slot === 'id' && !$record->image_with_id_path) {
                 $missingFields[] = 'ID Image';
+            } elseif ($slot === 'error' && !RecordType::needsErrorImage($record->record_type)) {
+                // Medical mission records need no PCU error screenshot, but the shared
+                // template still carries the error placeholder, so skip it for them.
+                continue;
             } elseif ($slot === 'error' && !$record->empanelment_error_image_path) {
                 $missingFields[] = 'Empanelment Error Image';
             } elseif ($canonical !== null && in_array($canonical, PlaceholderMap::REQUIRED_TEXT_FIELDS, true) && empty($record->$canonical)) {

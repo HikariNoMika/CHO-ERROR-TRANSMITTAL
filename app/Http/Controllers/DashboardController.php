@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\PatientRecord;
+use App\Support\RecordType;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Carbon\Carbon;
@@ -33,32 +34,44 @@ class DashboardController extends Controller
             ->whereBetween('created_at', [$a, $b])
             ->count();
 
-        $errorCount = $countRange('error', $from, $to);
-        $successCount = $countRange('success', $from, $to);
+        // One count per known type, so a new type shows up on the dashboard
+        // without touching this method.
+        $counts = [];
+        $prevCounts = [];
+        foreach (RecordType::slugs() as $type) {
+            $counts[$type] = $countRange($type, $from, $to);
+        }
 
         // Equally sized window immediately before the selection, for deltas.
         $spanDays = (int) $from->diffInDays($to->copy()->startOfDay()) + 1;
         $prevFrom = $from->copy()->subDays($spanDays)->startOfDay();
         $prevTo = $from->copy()->subDay()->endOfDay();
-        $prevError = $countRange('error', $prevFrom, $prevTo);
-        $prevSuccess = $countRange('success', $prevFrom, $prevTo);
+        foreach (RecordType::slugs() as $type) {
+            $prevCounts[$type] = $countRange($type, $prevFrom, $prevTo);
+        }
+
+        $total = array_sum($counts);
+        $prevTotal = array_sum($prevCounts);
+
+        $deltas = ['total' => $this->delta($total, $prevTotal)];
+        foreach ($counts as $type => $count) {
+            $deltas[$type] = $this->delta($count, $prevCounts[$type]);
+        }
 
         $analytics = [
-            'error' => $errorCount,
-            'success' => $successCount,
-            'total' => $errorCount + $successCount,
+            'counts' => $counts,
+            'error' => $counts[RecordType::ERROR],
+            'success' => $counts[RecordType::SUCCESS],
+            'mission' => $counts[RecordType::MISSION],
+            'total' => $total,
             'is_today' => $from->isSameDay($today) && $to->isSameDay($today),
             'label' => $from->isSameDay($today) && $to->isSameDay($today)
                 ? 'Today · '.$from->format('M j, Y')
                 : $from->format('M j, Y').' – '.$to->format('M j, Y'),
-            'error_rate' => ($errorCount + $successCount) > 0
-                ? round($errorCount / ($errorCount + $successCount) * 100)
+            'error_rate' => $total > 0
+                ? round($counts[RecordType::ERROR] / $total * 100)
                 : 0,
-            'delta' => [
-                'error' => $this->delta($errorCount, $prevError),
-                'success' => $this->delta($successCount, $prevSuccess),
-                'total' => $this->delta($errorCount + $successCount, $prevError + $prevSuccess),
-            ],
+            'delta' => $deltas,
             'prev_label' => $prevFrom->format('M j').' – '.$prevTo->format('M j, Y'),
             'series' => $this->series($from, $to),
         ];
@@ -93,9 +106,10 @@ class DashboardController extends Controller
 
         // Plain array, not a Collection: buckets are mutated in place below,
         // which Collection's array access cannot do.
+        $slugs = RecordType::slugs();
         $buckets = [];
         foreach ($keys as $k) {
-            $buckets[$k] = ['error' => 0, 'success' => 0, 'total' => 0];
+            $buckets[$k] = array_fill_keys(array_merge($slugs, ['total']), 0);
         }
 
         $expr = $byHour ? "strftime('%H', created_at)" : "date(created_at)";
@@ -104,28 +118,31 @@ class DashboardController extends Controller
             ->selectRaw("record_type, {$expr} as bucket, count(*) as aggregate")
             ->groupBy('record_type', 'bucket')
             ->get()
-            ->each(function ($row) use (&$buckets) {
+            ->each(function ($row) use (&$buckets, $slugs) {
                 $key = (string) $row->bucket;
                 if (!array_key_exists($key, $buckets)) {
                     return;
                 }
                 $n = (int) $row->aggregate;
                 $buckets[$key]['total'] += $n;
-                if (in_array($row->record_type, ['error', 'success'], true)) {
+                if (in_array($row->record_type, $slugs, true)) {
                     $buckets[$key][$row->record_type] += $n;
                 }
             });
 
         $values = array_values($buckets);
 
-        return [
+        $series = [
             'by_hour' => $byHour,
-            'error' => array_column($values, 'error'),
-            'success' => array_column($values, 'success'),
             'total' => array_column($values, 'total'),
             'labels' => $labels,
             'axis' => $byHour ? 'Hour of day' : 'Day of period',
         ];
+        foreach ($slugs as $type) {
+            $series[$type] = array_column($values, $type);
+        }
+
+        return $series;
     }
 
     /**

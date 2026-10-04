@@ -7,16 +7,23 @@
 @section('content')
     @php
         $rangeLabel = $analytics['is_today'] ? 'Today' : 'In range';
-        $sparks = [
-            'error' => $analytics['series']['error'],
-            'success' => $analytics['series']['success'],
-            'total' => $analytics['series']['total'],
-        ];
+        // Sparkline data per type, keyed the same way as the analytics counts.
+        $sparks = [];
+        foreach (\App\Support\RecordType::slugs() as $type) {
+            $sparks[$type] = $analytics['series'][$type];
+        }
+        $sparks['total'] = $analytics['series']['total'];
         $peak = function (array $values) {
             return max(1, max($values ?: [1]));
         };
         $pct = fn ($v, $max) => $max > 0 ? max($v > 0 ? 8 : 3, (int) round($v / $max * 100)) : 3;
         $axis = ['first' => $analytics['series']['labels'][0] ?? '', 'last' => $analytics['series']['labels'][count($analytics['series']['labels']) - 1] ?? ''];
+        // Glyph per type, kept here so App\Support\RecordType stays data-only.
+        $typeIcons = [
+            'error' => '<path d="M12 8v5"/><path d="M12 16.5h.01"/><circle cx="12" cy="12" r="9"/>',
+            'success' => '<path d="M20 6 9 17l-5-5"/>',
+            'mission' => '<path d="M12 21s-7-4.5-7-10a7 7 0 1114 0c0 5.5-7 10-7 10z"/><circle cx="12" cy="11" r="2.5"/>',
+        ];
     @endphp
 
     <div class="card">
@@ -54,49 +61,34 @@
         </div>
 
         <div class="kpis">
-            <div class="kpi" data-tone="error">
-                <div class="kpi-head">
-                    <span class="kpi-label">PCU Error</span>
-                    <span class="kpi-icon" aria-hidden="true">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 8v5"/><path d="M12 16.5h.01"/><circle cx="12" cy="12" r="9"/></svg>
-                    </span>
+            {{-- One card per known record type, so a new type appears here without
+                 touching this view. --}}
+            @foreach (\App\Support\RecordType::slugs() as $type)
+                @php
+                    $d = $analytics['delta'][$type];
+                    $vals = $sparks[$type];
+                    $max = $peak($vals);
+                @endphp
+                <div class="kpi" data-tone="{{ $type }}">
+                    <div class="kpi-head">
+                        <span class="kpi-label">{{ \App\Support\RecordType::label($type) }}</span>
+                        <span class="kpi-icon" aria-hidden="true">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">{!! $typeIcons[$type] ?? '' !!}</svg>
+                        </span>
+                    </div>
+                    <div class="kpi-value">{{ $analytics['counts'][$type] }}<small> {{ $rangeLabel }}</small></div>
+                    <div class="kpi-foot">
+                        <span class="delta delta-{{ $d['dir'] }}">@if ($d['dir'] === 'up')&uarr;@elseif ($d['dir'] === 'down')&darr;@endif{{ $d['text'] }}</span>
+                        <span>vs previous period</span>
+                    </div>
+                    <div class="spark" aria-hidden="true">
+                        @foreach ($vals as $v)
+                            <span class="{{ $v > 0 ? 'on' : '' }}" style="height:{{ $pct($v, $max) }}%"></span>
+                        @endforeach
+                    </div>
+                    <div class="spark-axis"><span>{{ $axis['first'] }}</span><span>{{ $analytics['series']['axis'] }}</span><span>{{ $axis['last'] }}</span></div>
                 </div>
-                <div class="kpi-value">{{ $analytics['error'] }}<small> {{ $rangeLabel }}</small></div>
-                <div class="kpi-foot">
-                    @php $d = $analytics['delta']['error']; @endphp
-                    <span class="delta delta-{{ $d['dir'] }}">@if ($d['dir'] === 'up')&uarr;@elseif ($d['dir'] === 'down')&darr;@endif{{ $d['text'] }}</span>
-                    <span>vs previous period</span>
-                </div>
-                @php $vals = $sparks['error']; $max = $peak($vals); @endphp
-                <div class="spark" aria-hidden="true">
-                    @foreach ($vals as $v)
-                        <span class="{{ $v > 0 ? 'on' : '' }}" style="height:{{ $pct($v, $max) }}%"></span>
-                    @endforeach
-                </div>
-                <div class="spark-axis"><span>{{ $axis['first'] }}</span><span>{{ $analytics['series']['axis'] }}</span><span>{{ $axis['last'] }}</span></div>
-            </div>
-
-            <div class="kpi" data-tone="success">
-                <div class="kpi-head">
-                    <span class="kpi-label">PCU Success</span>
-                    <span class="kpi-icon" aria-hidden="true">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
-                    </span>
-                </div>
-                <div class="kpi-value">{{ $analytics['success'] }}<small> {{ $rangeLabel }}</small></div>
-                <div class="kpi-foot">
-                    @php $d = $analytics['delta']['success']; @endphp
-                    <span class="delta delta-{{ $d['dir'] }}">@if ($d['dir'] === 'up')&uarr;@elseif ($d['dir'] === 'down')&darr;@endif{{ $d['text'] }}</span>
-                    <span>vs previous period</span>
-                </div>
-                @php $vals = $sparks['success']; $max = $peak($vals); @endphp
-                <div class="spark" aria-hidden="true">
-                    @foreach ($vals as $v)
-                        <span class="{{ $v > 0 ? 'on' : '' }}" style="height:{{ $pct($v, $max) }}%"></span>
-                    @endforeach
-                </div>
-                <div class="spark-axis"><span>{{ $axis['first'] }}</span><span>{{ $analytics['series']['axis'] }}</span><span>{{ $axis['last'] }}</span></div>
-            </div>
+            @endforeach
 
             <div class="kpi" data-tone="total">
                 <div class="kpi-head">
@@ -129,13 +121,14 @@
                 </div>
                 <div class="kpi-value">{{ $analytics['error_rate'] }}<small>%</small></div>
                 <div class="kpi-foot">
-                    <span>{{ $analytics['error'] }} error · {{ $analytics['success'] }} success</span>
+                    <span>{{ $analytics['error'] }} error · {{ $analytics['success'] }} success · {{ $analytics['mission'] }} mission</span>
                 </div>
-                <div class="mix" role="img" aria-label="Error {{ $analytics['error'] }}, Success {{ $analytics['success'] }}">
-                    <span class="mix-error" style="width:{{ $analytics['total'] > 0 ? round($analytics['error'] / $analytics['total'] * 100) : 0 }}%"></span>
-                    <span class="mix-success" style="width:{{ $analytics['total'] > 0 ? round($analytics['success'] / $analytics['total'] * 100) : 0 }}%"></span>
+                <div class="mix" role="img" aria-label="Error {{ $analytics['error'] }}, Success {{ $analytics['success'] }}, Medical Mission {{ $analytics['mission'] }}">
+                    @foreach (\App\Support\RecordType::slugs() as $type)
+                        <span class="mix-{{ $type }}" style="width:{{ $analytics['total'] > 0 ? round($analytics['counts'][$type] / $analytics['total'] * 100) : 0 }}%"></span>
+                    @endforeach
                 </div>
-                <div class="spark-axis"><span>Error</span><span>Split</span><span>Success</span></div>
+                <div class="spark-axis"><span>Error</span><span>Split</span><span>Mission</span></div>
             </div>
         </div>
     </div>

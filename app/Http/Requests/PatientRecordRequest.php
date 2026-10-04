@@ -5,7 +5,9 @@ namespace App\Http\Requests;
 use App\Models\PatientRecord;
 use App\Models\Template;
 use App\Services\PlaceholderMap;
+use App\Support\RecordType;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class PatientRecordRequest extends FormRequest
 {
@@ -18,8 +20,10 @@ class PatientRecordRequest extends FormRequest
      * Single-flow validation: every save generates the document, so the
      * template's required fields must be complete up front.
      *
-     * Success records are quick logs (no evidence images required and
-     * birthdate may be unknown), so enforcement is relaxed for them.
+     * What each type insists on lives in App\Support\RecordType: success
+     * records are quick logs (no evidence images, birthdate may be unknown)
+     * and medical mission records register a patient on an ID photo without
+     * a PCU error screenshot.
      */
     public function withValidator($validator): void
     {
@@ -28,7 +32,8 @@ class PatientRecordRequest extends FormRequest
             if (!$template) {
                 return;
             }
-            $isSuccess = $this->input('record_type') === 'success';
+            $type = $this->input('record_type');
+            $needsEvidence = RecordType::needsEvidence($type);
             $required = $template->fields()->where('is_required', true)->pluck('placeholder');
             foreach ($required as $field) {
                 $canonical = PlaceholderMap::canonicalText($field);
@@ -63,10 +68,10 @@ class PatientRecordRequest extends FormRequest
                 || $this->filled('empanelment_error_image_base64')
                 || ($record && $record->empanelment_error_image_path && !$this->boolean('remove_empanelment_error_image'));
 
-            if (!$isSuccess && $needsId && !$idProvided) {
+            if ($needsEvidence && $needsId && !$idProvided) {
                 $validator->errors()->add('image_with_id', 'ID image is required to generate this template.');
             }
-            if (!$isSuccess && $needsError && !$errorProvided) {
+            if ($needsEvidence && RecordType::needsErrorImage($type) && $needsError && !$errorProvided) {
                 $validator->errors()->add('empanelment_error_image', 'Empanelment error image is required to generate this template.');
             }
         });
@@ -100,7 +105,7 @@ class PatientRecordRequest extends FormRequest
             'appointment_date' => 'nullable|date',
             'auth_transaction_code' => 'nullable|string|max:100',
             'pcu_error_code' => 'nullable|string|max:100|required_if:record_type,success',
-            'record_type' => 'required|in:error,success',
+            'record_type' => ['required', Rule::in(RecordType::slugs())],
             'head_of_clinic' => 'nullable|string|max:255',
             'template_id' => 'required|exists:templates,id',
             'image_with_id' => 'nullable|image|max:10240|mimes:jpeg,jpg,png,webp',

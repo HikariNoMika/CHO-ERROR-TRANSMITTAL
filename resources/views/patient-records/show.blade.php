@@ -6,7 +6,7 @@
 
 @section('content')
     @php
-        $isSuccess = ($record->record_type ?? 'error') === 'success';
+        $recordType = $record->record_type;
         $initials = collect(preg_split('/\s+/', trim($record->patient_name)))
             ->filter()
             ->take(2)
@@ -26,7 +26,7 @@
                     <span>{{ $record->birthdate?->format('F j, Y') ?? 'Birthdate not recorded' }}</span>
                 </div>
                 <div class="sub" style="margin-top:.5rem;">
-                    <span>PCU {{ ucfirst($record->record_type ?? 'error') }}</span>
+                    <span>{{ \App\Support\RecordType::label($recordType) }}</span>
                     <span aria-hidden="true">&middot;</span>
                     <span>{{ ucfirst($record->status) }}</span>
                     <span aria-hidden="true">&middot;</span>
@@ -46,7 +46,7 @@
                 @can('update', $record)
                     <a href="{{ route('records.edit', $record) }}" class="btn-secondary">Edit</a>
                 @endcan
-                <a href="{{ $isSuccess ? route('records.success') : route('records.error') }}" class="btn-secondary">&larr; Back</a>
+                <a href="{{ \App\Support\RecordType::indexUrl($recordType) }}" class="btn-secondary">&larr; Back</a>
             </div>
         </div>
 
@@ -88,7 +88,7 @@
             @endif
             @if ($record->pcu_error_code)
                 <div>
-                    <div class="k">PCU Error Code</div>
+                    <div class="k">{{ $recordType === \App\Support\RecordType::SUCCESS ? 'PCU Success Code' : 'PCU Error Code' }}</div>
                     <div class="v mono">{{ $record->pcu_error_code }}</div>
                 </div>
             @endif

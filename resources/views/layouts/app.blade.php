@@ -330,6 +330,7 @@
         .badge { display: inline-block; padding: .15rem .6rem; border-radius: 999px; font-size: 12px; font-weight: 600; background: #f3f4f6; color: #374151; }
         .badge-green { background: #dcfce7; color: #166534; }
         .badge-red { background: #fee2e2; color: #991b1b; }
+        .badge-blue { background: #dbeafe; color: #1e40af; }
         @media (max-width: 1279.98px) { .hide-below-xl { display: none; } }
 
         /* Analytics: KPI tiles drawn from the same tokens as the sidebar, so the
@@ -340,11 +341,13 @@
         .kpi::before { content: ''; position: absolute; inset: 0 auto 0 0; width: 4px; background: var(--grad-brand); }
         .kpi[data-tone="error"]::before { background: linear-gradient(180deg, #ef4444, var(--danger)); }
         .kpi[data-tone="success"]::before { background: linear-gradient(180deg, #22c55e, var(--success)); }
+        .kpi[data-tone="mission"]::before { background: linear-gradient(180deg, #3b82f6, #1d4ed8); }
         .kpi-head { display: flex; align-items: flex-start; justify-content: space-between; gap: .75rem; }
         .kpi-label { font-size: 11.5px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
         .kpi-icon { width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center; color: #fff; flex-shrink: 0; background: var(--grad-brand); }
         .kpi[data-tone="error"] .kpi-icon { background: linear-gradient(135deg, #ef4444, var(--danger)); }
         .kpi[data-tone="success"] .kpi-icon { background: linear-gradient(135deg, #22c55e, var(--success)); }
+        .kpi[data-tone="mission"] .kpi-icon { background: linear-gradient(135deg, #3b82f6, #1d4ed8); }
         .kpi-value { font-size: 34px; font-weight: 800; line-height: 1.05; letter-spacing: -.02em; color: var(--ink); margin: .55rem 0 .3rem; font-variant-numeric: tabular-nums; }
         .kpi-value small { font-size: 15px; font-weight: 700; color: var(--muted); }
         .kpi-foot { display: flex; align-items: center; gap: .45rem; flex-wrap: wrap; font-size: 12.5px; color: var(--muted); }
@@ -358,11 +361,13 @@
         .spark span.on { opacity: 1; }
         .kpi[data-tone="error"] .spark span { background: linear-gradient(180deg, #ef4444, var(--danger)); }
         .kpi[data-tone="success"] .spark span { background: linear-gradient(180deg, #22c55e, var(--success)); }
+        .kpi[data-tone="mission"] .spark span { background: linear-gradient(180deg, #3b82f6, #1d4ed8); }
         .spark-axis { display: flex; justify-content: space-between; gap: .5rem; font-size: 10.5px; color: var(--muted-2); margin-top: .3rem; }
         .mix { height: 10px; border-radius: 999px; overflow: hidden; display: flex; background: var(--line-2); margin-top: .85rem; }
         .mix span { display: block; height: 100%; }
         .mix .mix-error { background: linear-gradient(90deg, #ef4444, var(--danger)); }
         .mix .mix-success { background: linear-gradient(90deg, #22c55e, var(--success)); }
+        .mix .mix-mission { background: linear-gradient(90deg, #3b82f6, #1d4ed8); }
         @media (max-width: 1279.98px) { .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
         @media (max-width: 639.98px) { .kpis { grid-template-columns: minmax(0, 1fr); } }
         .k { font-size: 13px; color: var(--muted); font-weight: 600; }
@@ -440,6 +445,10 @@
                         <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                         PCU Success Records
                     </a>
+                    <a href="{{ route('records.mission') }}" class="{{ request()->routeIs('records.mission') ? 'active' : '' }}">
+                        <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.26 10.147a60.438 60.438 0 00-.491 6.347A48.62 48.62 0 0112 20.904a48.62 48.62 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.636 50.636 0 00-2.658-.813A59.906 59.906 0 0112 3.493a59.903 59.903 0 0110.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.717 50.717 0 0112 13.489a50.702 50.702 0 017.74-3.342M6.75 15a.75.75 0 100-1.5.75.75 0 000 1.5zm0 0v-3.675A55.378 55.378 0 0112 8.443m-7.007 11.55A5.981 5.981 0 006.75 15.75v-1.5"></path></svg>
+                        Medical Mission
+                    </a>
                     @can('viewAny', \App\Models\Setting::class)
                         <a href="{{ route('settings.index') }}" class="{{ request()->routeIs('settings*') ? 'active' : '' }}">
                             <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
@@ -463,6 +472,7 @@
                 <a href="{{ route('dashboard') }}" class="{{ request()->routeIs('dashboard') ? 'active' : '' }}">Dashboard</a>
                 <a href="{{ route('records.error') }}" class="{{ request()->routeIs('records.error') ? 'active' : '' }}">PCU Error Records</a>
                 <a href="{{ route('records.success') }}" class="{{ request()->routeIs('records.success') ? 'active' : '' }}">PCU Success Records</a>
+                <a href="{{ route('records.mission') }}" class="{{ request()->routeIs('records.mission') ? 'active' : '' }}">Medical Mission</a>
                 @can('viewAny', \App\Models\Setting::class)
                     <a href="{{ route('settings.index') }}" class="{{ request()->routeIs('settings*') ? 'active' : '' }}">Settings</a>
                 @endcan

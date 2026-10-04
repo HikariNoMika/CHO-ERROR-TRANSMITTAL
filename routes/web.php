@@ -36,6 +36,10 @@ Route::middleware('auth')->group(function () {
         ->defaults('type', 'success')
         ->name('records.success');
 
+    Route::get('records/mission', [PatientRecordController::class, 'index'])
+        ->defaults('type', 'mission')
+        ->name('records.mission');
+
     Route::get('records/error/create', [PatientRecordController::class, 'create'])
         ->defaults('type', 'error')
         ->name('records.error.create');
@@ -43,6 +47,10 @@ Route::middleware('auth')->group(function () {
     Route::get('records/success/create', [PatientRecordController::class, 'create'])
         ->defaults('type', 'success')
         ->name('records.success.create');
+
+    Route::get('records/mission/create', [PatientRecordController::class, 'create'])
+        ->defaults('type', 'mission')
+        ->name('records.mission.create');
 
     Route::resource('records', PatientRecordController::class)
         ->names('records')

@@ -1,14 +1,18 @@
 @extends('layouts.app')
 
 @section('page-title')
-    <h2 style="font-size:20px;font-weight:600;">New {{ request('type') === 'success' ? 'PCU Success' : 'PCU Error' }} Record</h2>
+    <h2 style="font-size:20px;font-weight:600;">New {{ \App\Support\RecordType::label(request('type')) }} Record</h2>
 @endsection
 
 @section('content')
 @php
-    // Success records are quick logs: no evidence images are collected, so the
-    // form is a single narrow column with just the identifying details.
-    $isSuccess = request('type') === 'success';
+    // Per-type shape and field rules come from App\Support\RecordType: success
+    // records are quick logs with no evidence images (a single narrow column),
+    // while medical mission records collect the ID photo but no PCU error code.
+    $type = \App\Support\RecordType::normalise(request('type'));
+    $isSuccess = $type === \App\Support\RecordType::SUCCESS;
+    $hasErrorCode = $type !== \App\Support\RecordType::MISSION;
+    $needsErrorImage = \App\Support\RecordType::needsErrorImage($type);
 @endphp
 <div class="form-wrap {{ $isSuccess ? 'narrow' : '' }}">
     <form method="POST" action="{{ route('records.store') }}" enctype="multipart/form-data" id="record-form">
@@ -19,7 +23,7 @@
                 <h3>Patient Information</h3>
                 <p style="color:#6b7280;">Fields marked <span style="color:#b91c1c;">*</span> are required.</p>
 
-                <input type="hidden" name="record_type" id="record_type" value="{{ old('record_type', request('type', 'error')) }}">
+                <input type="hidden" name="record_type" id="record_type" value="{{ old('record_type', $type) }}">
                 @error('record_type')<p class="fielderror">{{ $message }}</p>@enderror
 
                 <div class="fields">
@@ -44,13 +48,15 @@
                         @error('philhealth_id')<p class="fielderror">{{ $message }}</p>@enderror
                     </div>
 
-                    <div class="field">
-                        <label for="pcu_error_code">{{ $isSuccess ? 'PCU Success Code' : 'PCU Error Code' }}{{ $isSuccess ? ' *' : '' }}</label>
-                        <input type="text" name="pcu_error_code" id="pcu_error_code" value="{{ old('pcu_error_code') }}"
-                               placeholder="{{ $isSuccess ? 'e.g. PCU-SUC-001' : 'e.g. PCU-ERR-001' }}" autocomplete="off"
-                               @if ($isSuccess) required @endif>
-                        @error('pcu_error_code')<p class="fielderror">{{ $message }}</p>@enderror
-                    </div>
+                    @if ($hasErrorCode)
+                        <div class="field">
+                            <label for="pcu_error_code">{{ $isSuccess ? 'PCU Success Code' : 'PCU Error Code' }}{{ $isSuccess ? ' *' : '' }}</label>
+                            <input type="text" name="pcu_error_code" id="pcu_error_code" value="{{ old('pcu_error_code') }}"
+                                   placeholder="{{ $isSuccess ? 'e.g. PCU-SUC-001' : 'e.g. PCU-ERR-001' }}" autocomplete="off"
+                                   @if ($isSuccess) required @endif>
+                            @error('pcu_error_code')<p class="fielderror">{{ $message }}</p>@enderror
+                        </div>
+                    @endif
                 </div>
             </div>
 
@@ -68,17 +74,19 @@
                         ])
                     </div>
 
-                    <div class="card">
-                        <h3>Empanelment Error Image *</h3>
-                        <p style="color:#6b7280;">Screenshot of the empanelment error.</p>
-                        @include('patient-records.partials.image-upload', [
-                            'fieldName' => 'empanelment_error_image',
-                            'label' => 'Empanelment Error Image',
-                            'base64Field' => 'empanelment_error_image_base64',
-                            'existingImage' => null,
-                            'removeField' => 'remove_empanelment_error_image',
-                        ])
-                    </div>
+                    @if ($needsErrorImage)
+                        <div class="card">
+                            <h3>Empanelment Error Image *</h3>
+                            <p style="color:#6b7280;">Screenshot of the empanelment error.</p>
+                            @include('patient-records.partials.image-upload', [
+                                'fieldName' => 'empanelment_error_image',
+                                'label' => 'Empanelment Error Image',
+                                'base64Field' => 'empanelment_error_image_base64',
+                                'existingImage' => null,
+                                'removeField' => 'remove_empanelment_error_image',
+                            ])
+                        </div>
+                    @endif
                 </div>
             @endunless
         </div>

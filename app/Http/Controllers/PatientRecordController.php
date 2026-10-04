@@ -8,6 +8,7 @@ use App\Models\Template;
 use App\Services\DocumentGenerationService;
 use App\Services\AuditLogService;
 use App\Services\PatientRecordsWorkbookService;
+use App\Support\RecordType;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 
@@ -144,8 +145,8 @@ class PatientRecordController extends Controller
             $query->where('head_of_clinic', 'like', "%{$request->head_of_clinic}%");
         }
 
-        $type = $request->input('type', 'error');
-        if (in_array($type, ['error', 'success'], true)) {
+        $type = $request->input('type', RecordType::DEFAULT);
+        if (RecordType::exists($type)) {
             $query->where('record_type', $type);
         }
 
@@ -340,7 +341,8 @@ class PatientRecordController extends Controller
 
         $record->delete();
 
-        return redirect()->route('records.error')
+        // Back to the list the record actually belonged to, not always PCU Error.
+        return redirect()->route(RecordType::indexRoute($record->record_type))
             ->with('success', 'Record deleted successfully.');
     }
 
