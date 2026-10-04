@@ -6,6 +6,7 @@ use App\Models\Setting;
 use App\Models\Template;
 use App\Http\Requests\SettingRequest;
 use App\Services\AuditLogService;
+use App\Services\TemplateAdoptionService;
 use App\Services\TemplateFieldService;
 use App\Services\TemplateParserService;
 use Illuminate\Support\Facades\Storage;
@@ -15,6 +16,7 @@ class SettingController extends Controller
     public function __construct(
         protected TemplateParserService $parser,
         protected TemplateFieldService $fieldService,
+        protected TemplateAdoptionService $adoption,
         protected AuditLogService $auditLog
     ) {
     }
@@ -42,18 +44,23 @@ class SettingController extends Controller
             Setting::set($key, $value);
         }
 
+        $templateSummary = null;
+
         if ($request->hasFile('template_file')) {
-            $this->replaceTemplate($request);
+            $templateSummary = $this->replaceTemplate($request);
         }
 
-        return back()->with('success', 'Settings updated successfully.');
+        return back()->with('success', $templateSummary ?? 'Settings updated successfully.');
     }
 
     /**
      * Single-template mode: the uploaded file becomes the active template
-     * (previous version bumped) and every other template is deactivated.
+     * (previous version bumped), every other template is deactivated, and all
+     * existing records are moved onto it.
+     *
+     * @return string summary of what the swap changed
      */
-    protected function replaceTemplate(SettingRequest $request): void
+    protected function replaceTemplate(SettingRequest $request): string
     {
         $previous = Template::where('is_active', true)->orderBy('id')->first();
 
@@ -76,7 +83,12 @@ class SettingController extends Controller
 
         Template::where('id', '!=', $template->id)->update(['is_active' => false]);
 
+        // Only one template is kept, so existing records follow the new file.
+        $result = $this->adoption->adopt($template, $request->user());
+
         $this->auditLog->logTemplateUploaded($template, $request);
+
+        return 'Template v' . $template->version . ' is now active. ' . $this->adoption->summarise($result);
     }
 
     protected function bumpVersion(?string $version): string
