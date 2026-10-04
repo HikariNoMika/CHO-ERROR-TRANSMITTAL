@@ -1,59 +1,140 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# CHO Error Transmittal (MCA)
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+A Laravel web application for recording PCU/CHO error transmittals and generating the supporting
+Excel documents from a clinic-supplied template.
 
-## About Laravel
+- Store patient records and their images (PhilHealth ID, empanelment error)
+- Fill an Excel template with placeholders such as `{{patient_name}}`, `{{birthdate}}` and
+  `{{image_with_id}}`
+- Generate one document or batch up to 100 records at a time
+- Track every generation in history, and audit-log actions per user
+- Admin and staff roles; Settings restricted to admins
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+Full documentation, including the complete placeholder list and an installation walkthrough, is
+available in-app at **`/docs`** (public, no login required).
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## Requirements
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+- PHP **8.2+**
+- [Composer](https://getcomposer.org/)
+- Node.js / npm — *optional*, see the note below
 
-## Learning Laravel
+## Installation
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
+```bash
+git clone https://github.com/HikariNoMika/CHO-ERROR-TRANSMITTAL.git
+cd CHO-ERROR-TRANSMITTAL
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+composer install
 
-## Laravel Sponsors
+# Windows
+copy .env.example .env
+# macOS / Linux
+cp .env.example .env
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+php artisan key:generate
 
-### Premium Partners
+# The SQLite database is git-ignored, so create the empty file first.
+# Windows PowerShell
+New-Item database\database.sqlite
+# macOS / Linux
+touch database/database.sqlite
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+php artisan migrate
+php artisan db:seed
 
-## Contributing
+php artisan serve
+```
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+Then open <http://127.0.0.1:8000>.
 
-## Code of Conduct
+To update an existing clone:
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+```bash
+git pull
+composer install
+php artisan migrate
+```
 
-## Security Vulnerabilities
+### Default accounts — change these immediately
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+`php artisan db:seed` creates two users. **These credentials are public in this repository, so
+change the passwords before putting the app anywhere reachable.**
+
+| Email | Password | Role |
+| --- | --- | --- |
+| `admin@example.com` | `password` | Admin (full access, including Settings) |
+| `staff@example.com` | `password` | Staff (records and documents only) |
+
+There is no user-management screen yet, so set new passwords from the command line:
+
+```bash
+php artisan tinker
+>>> App\Models\User::where('email', 'admin@example.com')->first()
+      ->update(['password' => bcrypt('your-new-password')]);
+```
+
+Add more users the same way, with `'role' => 'staff'` or `'role' => 'admin'`. Set
+`'is_active' => false` to disable an account without losing its history.
+
+### Node.js is optional
+
+The application layout ships its CSS inline and does not load Vite assets, so `npm install` and
+`npm run build` are **not** required to run the app. They only matter if you intend to change
+`resources/css/app.css` or `resources/js/app.js`.
+
+## First run
+
+1. Sign in as the admin and open **Settings**.
+2. Set your **facility name** and **facility address** — these feed the `{{facility_name}}` and
+   `{{facility_address}}` placeholders in every generated document.
+3. Upload your Excel template. It becomes the active template, its version is bumped, and its
+   placeholders are detected for you.
+4. Cross-check the detected placeholders against the table in `/docs`.
+
+## Template placeholders at a glance
+
+| Placeholder | Fills |
+| --- | --- |
+| `{{patient_name}}` (also `fullname`, `full_name`, `person_fullname`, `name`, `beneficiary_name`) | Patient name |
+| `{{birthdate}}` (also `person_bdate`, `bdate`) | Birthdate, as `MM-DD-YYYY` |
+| `{{philhealth_id}}` (also `person_philid`, `philid`) | PhilHealth ID |
+| `{{head_of_clinic}}` (also `office_head`) | Clinic head |
+| `{{date_today}}` | Generation date |
+| `{{facility_name}}` / `{{facility_address}}` | From Settings |
+| `{{appointment_date}}` (also `date_of_appointment`) | Appointment date |
+| `{{auth_transaction_code}}` (also `auth_code`, `atc`, `atc_code`) | ATC |
+| `{{pcu_error_code}}` (also `pcu_code`, `pcu_error`) | PCU error code |
+| `{{image_with_id}}` or `{{person_with_id}}` | ID image, anchored over the cell |
+| `{{empanelment_error}}` | Empanelment error image, anchored over the cell |
+
+Notes:
+
+- Placeholders are case-insensitive and can appear inside surrounding text
+  (`Patient: {{fullname}}`).
+- An unrecognised placeholder is **left in the output as typed**, never blanked — so a stray
+  `{{...}}` in a generated file means the name is not in the table.
+- Image placeholders place the image over the cell and clear the text. Only the **first** matching
+  cell on each sheet receives the image.
+- See `/docs` for the authoritative list.
+
+## Record lifecycle
+
+`draft` → `generated` → `printed`
+
+- A record stays `draft` until a document is generated for it.
+- Generating sets `generated` and stores the file in history.
+- `printed` is set manually from the record page and is one-way.
+- Re-generating a record is allowed and appends a new generation; earlier files stay downloadable.
+
+## Security notes
+
+`.env`, the SQLite database, uploaded images and generated documents are all git-ignored and must
+never be committed — they can contain patient information. `storage/app/private` and
+`database/*.sqlite*` are covered by `.gitignore` for this reason.
 
 ## License
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+MIT. Built with [Laravel](https://laravel.com),
+[PhpSpreadsheet](https://phpspreadsheet.readthedocs.io/) and
+[Laravel Tinker](https://github.com/laravel/tinker).

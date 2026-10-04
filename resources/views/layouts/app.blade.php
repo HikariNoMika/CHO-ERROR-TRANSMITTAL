@@ -149,9 +149,18 @@
         .docs ul, .docs ol { margin: .4rem 0; padding-left: 1.25rem; }
         .docs li { margin-bottom: .3rem; }
         .docs code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px; background: #f1f5f9; padding: .1rem .35rem; border-radius: 4px; }
+        .docs pre { background: #0f172a; color: #e2e8f0; padding: .8rem .95rem; border-radius: var(--radius); overflow-x: auto; margin: .5rem 0; }
+        .docs pre code { background: none; color: inherit; padding: 0; font-size: 12.5px; line-height: 1.6; white-space: pre; }
+        .docs pre code .hint { color: #94a3b8; }
+        .docs h4 { font-size: 13.5px; font-weight: 600; margin: 1.1rem 0 .35rem; color: #0f172a; }
+        .docs .hint { color: var(--muted); font-size: 12px; }
         .docs table { width: 100%; border-collapse: collapse; margin: .5rem 0; font-size: 13px; }
         .docs th, .docs td { text-align: left; padding: .5rem .6rem; border-bottom: 1px solid var(--line); vertical-align: top; }
         .docs th { font-weight: 600; color: #0f172a; background: #f8fafc; }
+        .docs td code { word-break: break-word; }
+        @media (max-width: 700px) {
+            .docs table { display: block; width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        }
         .docs .docs-note { border-left: 3px solid var(--brand); background: #f8fafc; padding: .7rem .9rem; border-radius: 0 var(--radius) var(--radius) 0; margin: .75rem 0; }
         .credits-list { list-style: none; padding-left: 0; }
         .credits-list li { display: flex; flex-wrap: wrap; align-items: baseline; gap: .5rem; padding: .45rem 0; border-bottom: 1px solid var(--line); }
