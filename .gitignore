@@ -1,0 +1,45 @@
+*.log
+.DS_Store
+.env
+.env.backup
+.env.production
+.phpactor.json
+.phpunit.result.cache
+/.fleet
+/.idea
+/.nova
+/.phpunit.cache
+/.vscode
+/.zed
+/auth.json
+/node_modules
+/public/build
+/public/hot
+/public/storage
+/storage/*.key
+/storage/pail
+/vendor
+Homestead.json
+Homestead.yaml
+Thumbs.db
+
+# --- Patient data: never commit these -------------------------------------
+# The SQLite database holds every patient record, including the uploaded ID and
+# Empanelment images referenced by filename.
+/database/*.sqlite
+/database/*.sqlite-journal
+/database/*.sqlite-shm
+/database/*.sqlite-wal
+
+# Runtime uploads and generated workbooks. Patient names appear in the generated
+# filenames, e.g. EMPANELMENT_<patient name>_<date>_<id>.xlsx. The nested
+# storage/*/.gitignore files already cover this; these rules are a deliberate
+# second layer in case those are ever lost.
+/storage/app/private/*
+!/storage/app/private/.gitignore
+/storage/app/public/*
+!/storage/app/public/.gitignore
+
+# Screenshots may capture live patient records in the UI. Not verified safe, so
+# excluded by default - remove this line to include them deliberately.
+/Screenshot *.png
