@@ -122,8 +122,6 @@
         .bulk-count strong { color: #0f172a; font-size: 14px; }
         .bulk-selectall { display: inline-flex; align-items: center; gap: .45rem; font-size: 13px; font-weight: 600; color: #374151; cursor: pointer; }
         .bulk-selectall input { width: 16px; height: 16px; accent-color: var(--brand); cursor: pointer; }
-        .bulk-skip { display: inline-flex; align-items: center; gap: .4rem; font-size: 13px; font-weight: 600; color: #374151; cursor: pointer; white-space: nowrap; }
-        .bulk-skip input { width: 16px; height: 16px; accent-color: var(--brand); cursor: pointer; }
         body.is-busy .bulk-bar { opacity: .75; pointer-events: none; cursor: progress; }
 
         /* ---- Login ---- */
@@ -168,14 +166,7 @@
         .credits-list .cr-meta { color: var(--muted); font-size: 12.5px; }
         .credits-todo { border: 1px dashed #f59e0b; background: #fffbeb; color: #92400e; padding: .7rem .9rem; border-radius: var(--radius); font-size: 13px; margin: .5rem 0 0; }
         .bulk-result { margin-bottom: 1rem; padding: .9rem 1.1rem; border-radius: var(--radius); border: 1px solid; font-size: 13.5px; }
-        .bulk-result.is-ok { background: #f0fdf4; border-color: #bbf7d0; color: #166534; }
-        .bulk-result.is-partial { background: #fffbeb; border-color: #fde68a; color: #92400e; }
         .bulk-result.is-error { background: #fef2f2; border-color: #fecaca; color: #991b1b; }
-        .bulk-result-head { margin: 0; font-weight: 600; }
-        .bulk-result-sub { margin: .5rem 0 .2rem; font-weight: 600; font-size: 12.5px; text-transform: uppercase; letter-spacing: .04em; opacity: .8; }
-        .bulk-result ul { margin: 0; padding-left: 1.1rem; }
-        .bulk-result li { margin-bottom: .15rem; }
-        .bulk-result-more { opacity: .7; font-style: italic; }
 
         .card { background: #fff; border: 1px solid var(--line); border-radius: var(--radius); padding: 1.4rem; margin-bottom: 1.25rem; box-shadow: var(--shadow); }
         .flash { border-radius: 6px; padding: .6rem .8rem; margin-bottom: 1rem; }

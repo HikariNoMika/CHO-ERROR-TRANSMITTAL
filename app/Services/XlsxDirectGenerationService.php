@@ -31,6 +31,9 @@ class XlsxDirectGenerationService
     protected array $warnings = [];
     protected array $unknownPlaceholders = [];
 
+    /** @var array<string, \DOMDocument> In-memory copies of parts mutated mid-generation. */
+    protected array $partCache = [];
+
     public function __construct(protected TextAutofitService $autofit)
     {
     }
@@ -42,6 +45,7 @@ class XlsxDirectGenerationService
     {
         $this->warnings = [];
         $this->unknownPlaceholders = [];
+        $this->partCache = [];
 
         $record->loadMissing('template');
         $values = $this->textValues($record);
@@ -282,6 +286,24 @@ class XlsxDirectGenerationService
         return $dom;
     }
 
+    /**
+     * Read an XML part for mutation, keeping the DOM in memory between calls.
+     *
+     * ZipArchive::getFromName() returns false once addFromString() has rewritten
+     * that entry, so parts we touch more than once in a single generation
+     * (drawing rels, [Content_Types].xml) cannot be re-read from the archive.
+     * Without this cache the second image would rebuild a bare skeleton, restart
+     * relationship ids at rId1 and silently drop the template's own entries.
+     */
+    protected function mutablePart(ZipArchive $zip, string $entry, string $blankXml): ?DOMDocument
+    {
+        if (!isset($this->partCache[$entry])) {
+            $xml = $zip->getFromName($entry);
+            $this->partCache[$entry] = $this->loadXml($xml === false ? $blankXml : $xml);
+        }
+        return $this->partCache[$entry];
+    }
+
     // ------------------------------------------------------------------
     // Cells: shared strings + inline strings
     // ------------------------------------------------------------------
@@ -488,9 +510,10 @@ class XlsxDirectGenerationService
         $nvPicPr->appendChild($cNvPicPr);
         $pic->appendChild($nvPicPr);
 
+        // blipFill is xdr-namespaced here (CT_Picture), but a:blip and a:stretch are not.
         $blipFill = $dom->createElementNS(self::DRAWING_NS, 'xdr:blipFill');
-        $blip = $dom->createElementNS(self::R_NS, 'a:blip');
-        $blip->setAttribute('r:embed', $relId);
+        $blip = $dom->createElementNS(self::A_NS, 'a:blip');
+        $blip->setAttributeNS(self::R_NS, 'r:embed', $relId);
         $blipFill->appendChild($blip);
         $stretch = $dom->createElementNS(self::A_NS, 'a:stretch');
         $stretch->appendChild($dom->createElementNS(self::A_NS, 'a:fillRect'));
@@ -548,11 +571,7 @@ class XlsxDirectGenerationService
             $this->ensureContentType($zip, $ext);
 
             $relsFile = 'xl/drawings/_rels/' . basename($drawingFile) . '.rels';
-            $relsXml = $zip->getFromName($relsFile);
-            if ($relsXml === false) {
-                $relsXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="' . self::REL_NS . '"></Relationships>';
-            }
-            $rdom = $this->loadXml($relsXml);
+            $rdom = $this->mutablePart($zip, $relsFile, '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="' . self::REL_NS . '"></Relationships>');
             if (!$rdom) {
                 throw new \RuntimeException('Could not update drawing relationships.');
             }
@@ -583,21 +602,22 @@ class XlsxDirectGenerationService
     protected function ensureContentType(ZipArchive $zip, string $ext): void
     {
         $mime = $ext === 'png' ? 'image/png' : 'image/jpeg';
-        $xml = $zip->getFromName('[Content_Types].xml');
-        if ($xml === false) {
-            return;
-        }
-        $dom = $this->loadXml($xml);
-        if (!$dom) {
+        $ctNs = 'http://schemas.openxmlformats.org/package/2006/content-types';
+        $dom = $this->mutablePart(
+            $zip,
+            '[Content_Types].xml',
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="' . $ctNs . '"></Types>'
+        );
+        if (!$dom || !$dom->documentElement) {
             return;
         }
         $xp = new DOMXPath($dom);
-        $xp->registerNamespace('c', 'http://schemas.openxmlformats.org/package/2006/content-types');
+        $xp->registerNamespace('c', $ctNs);
         $found = $xp->query('//c:Default[@Extension="' . $ext . '"]');
         if ($found !== false && $found->length > 0) {
             return;
         }
-        $def = $dom->createElementNS('http://schemas.openxmlformats.org/package/2006/content-types', 'Default');
+        $def = $dom->createElementNS($ctNs, 'Default');
         $def->setAttribute('Extension', $ext);
         $def->setAttribute('ContentType', $mime);
         $dom->documentElement->appendChild($def);
