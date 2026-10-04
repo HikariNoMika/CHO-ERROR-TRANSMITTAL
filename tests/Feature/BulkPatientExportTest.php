@@ -144,4 +144,62 @@ class BulkPatientExportTest extends TestCase
             fn ($n) => in_array($n, ['REAL ONE'], true)
         )));
     }
+
+    public function test_it_states_the_filtered_date_range_in_the_sheet(): void
+    {
+        $a = $this->makeRecord('RANGED');
+
+        $response = $this->actingAs($this->user)->post(route('records.bulk-export'), [
+            'records' => [$a->id],
+            'date_from' => '2026-10-01',
+            'date_to' => '2026-10-04',
+        ]);
+
+        $response->assertOk();
+        $grid = $this->gridFrom($response->streamedContent());
+
+        $subtitle = (string) $grid[1][0];
+        $this->assertStringContainsString('10-01-26 to 10-04-26', $subtitle, 'the from-to range must appear in the sheet');
+        $this->assertStringContainsString('1 selected record', $subtitle);
+    }
+
+    public function test_it_says_all_dates_when_no_range_was_applied(): void
+    {
+        $a = $this->makeRecord('UNRANGED');
+
+        $response = $this->actingAs($this->user)->post(route('records.bulk-export'), [
+            'records' => [$a->id],
+        ]);
+
+        $response->assertOk();
+        $this->assertStringContainsString('All dates', (string) $this->gridFrom($response->streamedContent())[1][0]);
+    }
+
+    public function test_an_open_ended_range_names_the_missing_end(): void
+    {
+        $a = $this->makeRecord('OPEN END');
+
+        $response = $this->actingAs($this->user)->post(route('records.bulk-export'), [
+            'records' => [$a->id],
+            'date_from' => '2026-10-01',
+        ]);
+
+        $response->assertOk();
+        $subtitle = (string) $this->gridFrom($response->streamedContent())[1][0];
+        $this->assertStringContainsString('10-01-26 to today', $subtitle);
+    }
+
+    public function test_the_filtered_export_states_its_range_too(): void
+    {
+        $this->makeRecord('FILTERED');
+
+        $response = $this->actingAs($this->user)->get(route('records.export', [
+            'type' => 'error',
+            'date_from' => '2026-10-02',
+            'date_to' => '2026-10-03',
+        ]));
+
+        $response->assertOk();
+        $this->assertStringContainsString('10-02-26 to 10-03-26', (string) $this->gridFrom($response->streamedContent())[1][0]);
+    }
 }

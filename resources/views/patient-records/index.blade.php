@@ -61,6 +61,10 @@
     <form method="POST" action="{{ route('records.bulk-export') }}" id="bulk-form" class="bulk-bar">
         @csrf
         <div id="bulk-targets"></div>
+        {{-- The ticked rows came from this filtered list, so the download needs the
+             same window in order to state the range it covers. --}}
+        <input type="hidden" name="date_from" value="{{ request('date_from') }}">
+        <input type="hidden" name="date_to" value="{{ request('date_to') }}">
 
         <label class="bulk-selectall only-mobile">
             <input type="checkbox" class="select-all-toggle"> <span>Select all</span>
@@ -278,9 +282,48 @@
                 go.disabled = selectedIds().length === 0;
             }
             if (clear) clear.disabled = true;
+            document.body.classList.remove('is-busy');
         }
 
-        form.addEventListener('submit', function (e) {
+        function setBusy(busy, ids) {
+            var many = function (n, one, many_) { return n + ' ' + (n === 1 ? one : many_); };
+            if (go) {
+                go.disabled = busy || selectedIds().length === 0;
+                go.textContent = busy
+                    ? 'Exporting ' + many(ids.length, 'record', 'records') + '...'
+                    : 'Export selected';
+            }
+            if (clear) clear.disabled = busy || selectedIds().length === 0;
+            document.body.classList.toggle('is-busy', busy);
+        }
+
+        // The response is a file download, which never unloads the page. A plain
+        // form POST would therefore leave the bar disabled with "Exporting..."
+        // forever, so the submit is taken over: fetch the workbook, save it from a
+        // blob, and always hand the page back.
+        function filenameFrom(disposition, fallback) {
+            var star = /filename\*\s*=\s*UTF-8''([^;]+)/i.exec(disposition || '');
+            if (star) {
+                try { return decodeURIComponent(star[1].replace(/["']/g, '')); } catch (e) { /* fall through */ }
+            }
+            var plain = /filename="?([^";]+)"?/i.exec(disposition || '');
+            return plain ? plain[1] : fallback;
+        }
+
+        function saveBlob(blob, filename) {
+            var url = URL.createObjectURL(blob);
+            var link = document.createElement('a');
+            link.href = url;
+            link.download = filename || 'records.xlsx';
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            setTimeout(function () { URL.revokeObjectURL(url); }, 30000);
+        }
+
+        // Named, not anonymous, so the failure path can detach it before the
+        // browser takes over the submission.
+        function onSubmit(e) {
             var ids = selectedIds();
 
             if (ids.length === 0) {
@@ -312,22 +355,44 @@
                 targets.appendChild(input);
             });
 
-            // A full 100-record batch takes a few seconds; without this the page
-            // just looks frozen and invites a second click.
-            if (go) {
-                go.disabled = true;
-                go.textContent = 'Exporting… ' + many(ids.length, 'record', 'records') + '…';
-            }
-            if (clear) clear.disabled = true;
-            document.body.classList.add('is-busy');
-        });
+            e.preventDefault();
+            setBusy(true, ids);
+
+            fetch(form.action, {
+                method: 'POST',
+                body: new FormData(form),
+                credentials: 'same-origin',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            }).then(function (res) {
+                var type = res.headers.get('Content-Type') || '';
+                var isWorkbook = res.ok && type.indexOf('spreadsheetml') !== -1;
+
+                if (!isWorkbook) {
+                    // A validation failure redirects back with errors, so hand the
+                    // request to the browser and let the page render the message.
+                    form.removeEventListener('submit', onSubmit);
+                    form.submit();
+                    return null;
+                }
+
+                return res.blob().then(function (blob) {
+                    saveBlob(blob, filenameFrom(res.headers.get('Content-Disposition'), 'MCA_Records_Selected.xlsx'));
+                });
+            }).catch(function () {
+                window.alert('The export could not be started. Check your connection and try again.');
+            }).then(function () {
+                targets.innerHTML = '';
+                resetBusy();
+            });
+        }
+
+        form.addEventListener('submit', onSubmit);
 
         // Coming back via the back/forward cache would otherwise restore the page
-        // with the button still stuck on "Exporting…".
+        // with the button still stuck on "Exporting...".
         window.addEventListener('pageshow', function (e) {
             if (e.persisted) {
                 resetBusy();
-                document.body.classList.remove('is-busy');
             }
         });
 

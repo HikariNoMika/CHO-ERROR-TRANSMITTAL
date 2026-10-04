@@ -59,19 +59,7 @@ class PatientRecordController extends Controller
 
         $records = $this->filteredQuery($request)->limit(5000)->get();
 
-        // Title + covered date range.
-        $period = 'All dates';
-        if ($request->filled('date_from') || $request->filled('date_to')) {
-            $from = $request->filled('date_from')
-                ? \Carbon\Carbon::parse($request->date_from)->format('m-d-y')
-                : 'start';
-            $to = $request->filled('date_to')
-                ? \Carbon\Carbon::parse($request->date_to)->format('m-d-y')
-                : 'today';
-            $period = "{$from} to {$to}";
-        }
-
-        $spreadsheet = $this->workbook->build($records, $period);
+        $spreadsheet = $this->workbook->build($records, $this->dateRangeLabel($request));
 
         $this->auditLog->log(
             'exported_report',
@@ -110,11 +98,15 @@ class PatientRecordController extends Controller
         }
 
         $count = count($records);
+        $scope = count($validated['records']) === $count
+            ? "{$count} selected record" . ($count === 1 ? '' : 's')
+            : "{$count} of " . count($validated['records']) . ' selected records found';
+
+        // The rows were ticked off a filtered list, so the sheet states the range
+        // they were chosen from as well as how many actually made it.
         $spreadsheet = $this->workbook->build(
             $records,
-            count($validated['records']) === $count
-                ? "{$count} selected record" . ($count === 1 ? '' : 's')
-                : "{$count} of " . count($validated['records']) . ' selected records found',
+            $this->dateRangeLabel($request).' · '.$scope,
             'MCA Patient Records Export'
         );
 
@@ -166,6 +158,26 @@ class PatientRecordController extends Controller
         }
 
         return $query;
+    }
+
+    /**
+     * Human label for the date window the rows were filtered by, so every
+     * download states the range it covers instead of leaving the reader to guess.
+     */
+    protected function dateRangeLabel(Request $request): string
+    {
+        if (! $request->filled('date_from') && ! $request->filled('date_to')) {
+            return 'All dates';
+        }
+
+        $from = $request->filled('date_from')
+            ? \Carbon\Carbon::parse($request->date_from)->format('m-d-y')
+            : 'start';
+        $to = $request->filled('date_to')
+            ? \Carbon\Carbon::parse($request->date_to)->format('m-d-y')
+            : 'today';
+
+        return "{$from} to {$to}";
     }
 
     public function create(Request $request)
