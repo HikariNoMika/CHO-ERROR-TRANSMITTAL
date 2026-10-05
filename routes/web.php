@@ -4,6 +4,7 @@ use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DocumentGenerationController;
 use App\Http\Controllers\PatientRecordController;
+use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SettingController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
@@ -23,6 +24,13 @@ Route::middleware('auth')->group(function () {
     Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
 
     Route::get('/dashboard', DashboardController::class)->name('dashboard');
+
+    // Self-service profile. Inside auth but outside the admin group, so every
+    // signed-in user can reach their own details. The controller resolves the
+    // record from the session rather than from a route parameter, so there is no
+    // user id in the URL for one user to tamper with another's.
+    Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
+    Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
 
     // Patient Records (explicit paths must precede the resource so they
     // aren't read as a record id)

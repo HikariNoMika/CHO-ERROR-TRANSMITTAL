@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\AuditLog;
 use App\Models\PatientRecord;
 use App\Models\Template;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -12,13 +13,13 @@ class AuditLogService
 {
     public function log(
         string $action,
-        string $description = null,
-        string $modelType = null,
-        int $modelId = null,
-        Request $request = null
+        ?string $description = null,
+        ?string $modelType = null,
+        ?int $modelId = null,
+        ?Request $request = null
     ): AuditLog {
         $user = Auth::user();
-        
+
         return AuditLog::create([
             'user_id' => $user?->id,
             'action' => $action,
@@ -30,7 +31,7 @@ class AuditLogService
         ]);
     }
 
-    public function logRecordCreated(PatientRecord $record, Request $request = null): AuditLog
+    public function logRecordCreated(PatientRecord $record, ?Request $request = null): AuditLog
     {
         return $this->log(
             'created_record',
@@ -41,7 +42,7 @@ class AuditLogService
         );
     }
 
-    public function logRecordUpdated(PatientRecord $record, Request $request = null): AuditLog
+    public function logRecordUpdated(PatientRecord $record, ?Request $request = null): AuditLog
     {
         return $this->log(
             'updated_record',
@@ -52,7 +53,7 @@ class AuditLogService
         );
     }
 
-    public function logDocumentGenerated(PatientRecord $record, Request $request = null): AuditLog
+    public function logDocumentGenerated(PatientRecord $record, ?Request $request = null): AuditLog
     {
         return $this->log(
             'generated_document',
@@ -63,7 +64,7 @@ class AuditLogService
         );
     }
 
-    public function logDocumentDownloaded(PatientRecord $record, Request $request = null): AuditLog
+    public function logDocumentDownloaded(PatientRecord $record, ?Request $request = null): AuditLog
     {
         return $this->log(
             'downloaded_document',
@@ -74,7 +75,7 @@ class AuditLogService
         );
     }
 
-    public function logDocumentPrinted(PatientRecord $record, Request $request = null): AuditLog
+    public function logDocumentPrinted(PatientRecord $record, ?Request $request = null): AuditLog
     {
         return $this->log(
             'printed_document',
@@ -85,7 +86,7 @@ class AuditLogService
         );
     }
 
-    public function logRecordDeleted(PatientRecord $record, Request $request = null): AuditLog
+    public function logRecordDeleted(PatientRecord $record, ?Request $request = null): AuditLog
     {
         return $this->log(
             'deleted_record',
@@ -96,7 +97,7 @@ class AuditLogService
         );
     }
 
-    public function logTemplateUploaded(Template $template, Request $request = null): AuditLog
+    public function logTemplateUploaded(Template $template, ?Request $request = null): AuditLog
     {
         return $this->log(
             'uploaded_template',
@@ -107,13 +108,30 @@ class AuditLogService
         );
     }
 
-    public function logTemplateUpdated(Template $template, Request $request = null): AuditLog
+    public function logTemplateUpdated(Template $template, ?Request $request = null): AuditLog
     {
         return $this->log(
             'updated_template',
             "Updated template: {$template->name}",
             Template::class,
             $template->id,
+            $request
+        );
+    }
+
+    /**
+     * A user changing their own name, email or password.
+     *
+     * Takes the acting user explicitly rather than reading Auth::user(), so a
+     * caller can record an edit to somebody else's profile.
+     */
+    public function logProfileUpdated(User $user, string $description, ?Request $request = null): AuditLog
+    {
+        return $this->log(
+            'updated_profile',
+            $description,
+            User::class,
+            $user->id,
             $request
         );
     }

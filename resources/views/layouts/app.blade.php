@@ -461,6 +461,10 @@
                             Users
                         </a>
                     @endcan
+                    <a href="{{ route('profile.edit') }}" class="{{ request()->routeIs('profile.*') ? 'active' : '' }}">
+                        <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
+                        My Profile
+                    </a>
                     <a href="{{ route('docs') }}" class="{{ request()->routeIs('docs') ? 'active' : '' }}">
                         <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"></path></svg>
                         Documentation
@@ -485,6 +489,7 @@
                 @can('viewAny', \App\Models\User::class)
                     <a href="{{ route('users.index') }}" class="{{ request()->routeIs('users*') ? 'active' : '' }}">Users</a>
                 @endcan
+                <a href="{{ route('profile.edit') }}" class="{{ request()->routeIs('profile.*') ? 'active' : '' }}">My Profile</a>
                 <a href="{{ route('docs') }}" class="{{ request()->routeIs('docs') ? 'active' : '' }}">Documentation</a>
             </nav>
         </aside>
