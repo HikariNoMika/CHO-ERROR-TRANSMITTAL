@@ -164,7 +164,7 @@
         .credits-list li { display: flex; flex-wrap: wrap; align-items: baseline; gap: .5rem; padding: .45rem 0; border-bottom: 1px solid var(--line); }
         .credits-list .cr-name { font-weight: 600; min-width: 12rem; }
         .credits-list .cr-meta { color: var(--muted); font-size: 12.5px; }
-        .credits-todo { border: 1px dashed #f59e0b; background: #fffbeb; color: #92400e; padding: .7rem .9rem; border-radius: var(--radius); font-size: 13px; margin: .5rem 0 0; }
+        .credits-list a { color: var(--brand); }
         .bulk-result { margin-bottom: 1rem; padding: .9rem 1.1rem; border-radius: var(--radius); border: 1px solid; font-size: 13.5px; }
         .bulk-result.is-error { background: #fef2f2; border-color: #fecaca; color: #991b1b; }
 

@@ -36,11 +36,7 @@
                     @error('patient_name')<p class="fielderror">{{ $message }}</p>@enderror
                 </div>
 
-                <div class="field">
-                    <label for="birthdate">Birthdate *</label>
-                    <input type="date" name="birthdate" id="birthdate" value="{{ old('birthdate', $record->birthdate?->format('Y-m-d')) }}" required max="{{ now()->format('Y-m-d') }}">
-                    @error('birthdate')<p class="fielderror">{{ $message }}</p>@enderror
-                </div>
+                @include('patient-records.partials.birthdate-field', ['birthdate' => $record->birthdate?->format('Y-m-d')])
 
                 <div class="field">
                     <label for="philhealth_id">PhilHealth ID *</label>
@@ -118,7 +114,7 @@
             @endif
             <div class="actions" style="justify-content:flex-end;">
                 <button type="submit" data-submit-btn>
-                    <span data-btn-label>{{ $usesTemplate ? 'Save &amp; Print' : 'Save Changes' }}</span>
+                    <span data-btn-label>{{ $usesTemplate ? 'Save & Print' : 'Save Changes' }}</span>
                 </button>
             </div>
         </div>

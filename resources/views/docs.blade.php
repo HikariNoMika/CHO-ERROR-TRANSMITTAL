@@ -65,6 +65,16 @@
             the template version and the user who generated it, and each remains downloadable.
         </div>
 
+        <div class="docs-note">
+            <strong>Pasting a birthdate.</strong> The birthdate box accepts typed or pasted dates in
+            <code>mm/dd/yyyy</code> form &mdash; for example <code>03/14/1990</code> &mdash; so you can
+            copy it straight from a referral sheet or spreadsheet instead of picking it from a
+            calendar. Two-digit years work too: <code>03/14/90</code> is read as 1990, and
+            <code>03/14/25</code> as 2025. The value is checked as you go, so an impossible date such
+            as <code>02/30/1990</code> is refused instead of quietly becoming a different date. The
+            field reformats itself once a valid date is entered.
+        </div>
+
         <h3>Required fields</h3>
         <p>Error records need, at minimum:</p>
         <ul>
@@ -81,6 +91,20 @@
             Success records need only name, birthdate, PIN and success code &mdash; no images, no
             template.
         </p>
+        <p>
+            <strong>Medical Mission</strong> records need the standard fields plus an active
+            template for the Mission record type, and may carry an <strong>ID Proof</strong> image
+            &mdash; a photo of the ID document itself, which is separate from the photo of the
+            patient holding the ID. Put <code>@{{id_proof}}</code> in the template to place it.
+        </p>
+
+        <div class="docs-note">
+            <strong>Templates are per record type.</strong> Each of PCU Error, Success and Medical
+            Mission keeps its own active template, so you can upload a different layout for each
+            without one overwriting another. When editing a record you may only submit the template
+            that belongs to that record's own type. Records that already used a template that has
+            since been retired can still be re-saved, so historical work is never stranded.
+        </div>
 
         <h3>Template placeholders</h3>
         <p>
@@ -136,15 +160,21 @@
                 <tr><th>Slot</th><th>Placeholder to use</th><th>Rendered?</th></tr>
             </thead>
             <tbody>
-                <tr><td>ID image</td><td><code>@{{image_with_id}}</code> or <code>@{{person_with_id}}</code></td><td>Yes</td></tr>
+                <tr><td>ID image <span class="hint">(photo of the patient holding the ID)</span></td><td><code>@{{image_with_id}}</code> or <code>@{{person_with_id}}</code></td><td>Yes</td></tr>
                 <tr><td>Empanelment error image</td><td><code>@{{empanelment_error}}</code></td><td>Yes</td></tr>
+                <tr>
+                    <td>ID Proof <span class="hint">(photo of the ID document itself &mdash; Medical Mission)</span></td>
+                    <td><code>@{{id_proof}}</code> or <code>@{{id_proof_image}}</code></td>
+                    <td>Yes</td>
+                </tr>
                 <tr>
                     <td colspan="3" class="hint">
                         These are also classified as image placeholders when a template is analysed,
                         but are <strong>not</strong> drawn into the document:
                         <code>@{{id_image}}</code>, <code>@{{photo}}</code>,
-                        <code>@{{empanelment_error_image}}</code>, <code>@{{error_image}}</code>.
-                        Stick to the two names above.
+                        <code>@{{empanelment_error_image}}</code>, <code>@{{error_image}}</code>,
+                        <code>@{{person_id}}</code>, <code>@{{id_card}}</code>.
+                        Stick to the three names above.
                     </td>
                 </tr>
             </tbody>
@@ -438,12 +468,27 @@ npm run build     <span class="hint"># or: npm run dev</span></code></pre>
         </p>
 
         <h3>Built by</h3>
-        {{-- Filled in by the deploying clinic. Replace this block with your own
-             details before going live; it is intentionally left as a placeholder
-             rather than guessed at. --}}
-        <p class="credits-todo">
-            <strong>Placeholder &mdash; to be completed.</strong>
-            Add the developing team, clinic or hospital name and any acknowledgements here.
+        <p>
+            MCA Patient Docs &mdash; PCU error, success and medical mission transmittal.
+        </p>
+        <ul class="credits-list">
+            <li>
+                <span class="cr-name">Facebook</span>
+                <span class="cr-meta">
+                    <a href="https://www.facebook.com/jamce24" target="_blank" rel="noopener noreferrer">facebook.com/jamce24</a>
+                </span>
+            </li>
+            <li>
+                <span class="cr-name">GitHub</span>
+                <span class="cr-meta">
+                    <a href="https://github.com/HikariNoMika" target="_blank" rel="noopener noreferrer">github.com/HikariNoMika</a>
+                </span>
+            </li>
+        </ul>
+        <p>
+            <strong>Acknowledgements.</strong> The PCU error and success codes, PhilHealth identifier
+            formats and the Excel claim templates used with this application belong to PhilHealth and
+            to the deploying clinic.
         </p>
     </section>
 
