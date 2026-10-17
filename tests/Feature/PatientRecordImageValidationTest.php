@@ -140,4 +140,29 @@ class PatientRecordImageValidationTest extends TestCase
         $this->assertContains('image_with_id', $errors, 'Removing the ID image should require a replacement');
         $this->assertNotContains('empanelment_error_image', $errors, 'The untouched image should not be flagged');
     }
+
+    /**
+     * Every slot the form can store must be servable by the image route. The
+     * route's "type" constraint once allowed only id|error, so an id_proof
+     * picture rendered as a broken 404 even though the file was on disk.
+     */
+    public function test_every_image_slot_is_servable_including_id_proof(): void
+    {
+        Storage::fake('private');
+        $template = $this->makeTemplate();
+        $record = $this->makeRecord($template, true);
+
+        Storage::disk('private')->put('patient-images/proof.png', 'x');
+        $record->forceFill(['id_proof_image_path' => 'patient-images/proof.png'])->save();
+
+        foreach (['id', 'error', 'id_proof'] as $type) {
+            $this->actingAs($this->user)
+                ->get(route('records.image', [$record, $type]))
+                ->assertOk();
+        }
+
+        $this->actingAs($this->user)
+            ->get(route('records.image', [$record, 'bogus']))
+            ->assertNotFound();
+    }
 }

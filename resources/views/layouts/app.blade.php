@@ -125,9 +125,11 @@
         body.is-busy .bulk-bar { opacity: .75; pointer-events: none; cursor: progress; }
 
         /* ---- Login ---- */
-        /* Deliberately top-aligned rather than vertically centred: centring on a
-           tall monitor pushes the form below the fold of a short window. */
-        .login-wrap { max-width: 26rem; margin: .5rem auto 0; }
+        /* Centred both ways: the card sits in the vertical middle of the space
+           below the navbar. min-height is viewport-capped, so a short window
+           scrolls rather than pushing the form past the fold. */
+        .login-wrap { max-width: 26rem; margin: 0 auto; min-height: calc(100vh - var(--nav-h) - 5.25rem); display: flex; flex-direction: column; justify-content: center; }
+        .login-wrap .card { margin-bottom: 0; }
         .login-card .login-head { text-align: center; margin-bottom: 1.25rem; padding-bottom: 1rem; border-bottom: 1px solid var(--line); }
         .login-head h2 { margin: 0 0 .3rem; font-size: 19px; font-weight: 600; }
         .login-head p { margin: 0; color: var(--muted); font-size: 13.5px; }

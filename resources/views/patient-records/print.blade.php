@@ -30,34 +30,38 @@
         </div>
     @endif
 
-    <div class="sheet print-document">
-        @if (!empty($preview))
-            {{-- Faithful render of the actual Excel template --}}
-            <div class="xlsx-preview" style="aspect-ratio:{{ $preview['width'] }} / {{ $preview['height'] }};">
-                @if ($preview['background'])
-                    <img src="{{ $preview['background'] }}" alt="" style="position:absolute;left:{{ $preview['bgX'] / $preview['width'] * 100 }}%;top:{{ $preview['bgY'] / $preview['height'] * 100 }}%;width:{{ $preview['bgW'] / $preview['width'] * 100 }}%;height:{{ $preview['bgH'] / $preview['height'] * 100 }}%;">
-                @endif
-                @foreach ($preview['boxes'] as $box)
-                    @if ($box['kind'] === 'image')
-                        @if (!empty($box['src']))
-                            <img src="{{ $box['src'] }}" alt="{{ $box['label'] }}" style="position:absolute;left:{{ $box['x'] / $preview['width'] * 100 }}%;top:{{ $box['y'] / $preview['height'] * 100 }}%;width:{{ $box['w'] / $preview['width'] * 100 }}%;height:{{ $box['h'] / $preview['height'] * 100 }}%;object-fit:fill;">
-                        @endif
-                    @else
-                        <div style="position:absolute;left:{{ $box['x'] / $preview['width'] * 100 }}%;top:{{ $box['y'] / $preview['height'] * 100 }}%;width:{{ $box['w'] / $preview['width'] * 100 }}%;height:{{ $box['h'] / $preview['height'] * 100 }}%;overflow:hidden;">
-                            @foreach ($box['lines'] as $line)
-                                {{-- Font must scale with the sheet: shape geometry is expressed as a
-                                     percentage of the preview width, so a fixed pt size would shrink
-                                     relative to its box on narrow/printed output and clip. 1cqw is 1%
-                                     of the preview width, which keeps text and boxes in the same
-                                     proportion the workbook uses. --}}
-                                <div style="text-align:{{ $line['align'] }};font-size:{{ round($line['style']['size'] * 4 / 3 / $preview['width'] * 100, 4) }}cqw;{{ $line['style']['bold'] ? 'font-weight:bold;' : '' }}color:#{{ $line['style']['color'] }};line-height:1.25;white-space:pre-wrap;">{{ $line['text'] }}</div>
-                            @endforeach
-                        </div>
+    @if (!empty($preview) && !empty($preview['pages']))
+        {{-- Faithful render of the actual Excel template: one printed sheet per worksheet. --}}
+        @foreach ($preview['pages'] as $page)
+            <div class="sheet print-document xlsx-page {{ $loop->last ? '' : 'page-break' }}">
+                <div class="xlsx-preview" style="--ar:{{ round($page['width'] / $page['height'], 6) }};aspect-ratio:{{ $page['width'] }} / {{ $page['height'] }};">
+                    @if ($page['background'])
+                        <img src="{{ $page['background'] }}" alt="" style="position:absolute;left:{{ $page['bgX'] / $page['width'] * 100 }}%;top:{{ $page['bgY'] / $page['height'] * 100 }}%;width:{{ $page['bgW'] / $page['width'] * 100 }}%;height:{{ $page['bgH'] / $page['height'] * 100 }}%;">
                     @endif
-                @endforeach
+                    @foreach ($page['boxes'] as $box)
+                        @if ($box['kind'] === 'image')
+                            @if (!empty($box['src']))
+                                <img src="{{ $box['src'] }}" alt="{{ $box['label'] }}" style="position:absolute;left:{{ $box['x'] / $page['width'] * 100 }}%;top:{{ $box['y'] / $page['height'] * 100 }}%;width:{{ $box['w'] / $page['width'] * 100 }}%;height:{{ $box['h'] / $page['height'] * 100 }}%;object-fit:fill;">
+                            @endif
+                        @else
+                            <div style="position:absolute;left:{{ $box['x'] / $page['width'] * 100 }}%;top:{{ $box['y'] / $page['height'] * 100 }}%;width:{{ $box['w'] / $page['width'] * 100 }}%;height:{{ $box['h'] / $page['height'] * 100 }}%;overflow:hidden;">
+                                @foreach ($box['lines'] as $line)
+                                    {{-- Font must scale with the sheet: shape geometry is expressed as a
+                                         percentage of the preview width, so a fixed pt size would shrink
+                                         relative to its box on narrow/printed output and clip. 1cqw is 1%
+                                         of the preview width, which keeps text and boxes in the same
+                                         proportion the workbook uses. --}}
+                                    <div style="text-align:{{ $line['align'] }};font-size:{{ round($line['style']['size'] * 4 / 3 / $page['width'] * 100, 4) }}cqw;{{ $line['style']['bold'] ? 'font-weight:bold;' : '' }}color:#{{ $line['style']['color'] }};line-height:1.25;white-space:pre-wrap;">{{ $line['text'] }}</div>
+                                @endforeach
+                            </div>
+                        @endif
+                    @endforeach
+                </div>
             </div>
-        @else
-            {{-- Generic summary (cell-based templates) --}}
+        @endforeach
+    @else
+        {{-- Generic summary (cell-based templates) --}}
+        <div class="sheet print-document">
             <div class="doc-head">
                 <h1>{{ $record->template->name ?? 'Document' }}</h1>
                 <p>Patient Empanelment Document</p>
@@ -118,6 +122,15 @@
                 </div>
 
                 <div class="img-block">
+                    <h3>ID Proof</h3>
+                    @if ($record->id_proof_image_url)
+                        <img src="{{ $record->id_proof_image_url }}" alt="ID Proof">
+                    @else
+                        <div class="img-empty">No ID proof available</div>
+                    @endif
+                </div>
+
+                <div class="img-block">
                     <h3>Empanelment Error Image</h3>
                     @if ($record->empanelment_error_image_url)
                         <img src="{{ $record->empanelment_error_image_url }}" alt="Empanelment Error">
@@ -126,8 +139,8 @@
                     @endif
                 </div>
             </div>
-        @endif
-    </div>
+        </div>
+    @endif
 
     {{-- Screen-only provenance footer --}}
     <div class="doc-foot no-print">

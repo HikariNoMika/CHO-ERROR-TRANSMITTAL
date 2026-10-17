@@ -39,6 +39,15 @@ class XlsxDirectGenerationService
     /** @var array<string, DOMDocument> In-memory copies of parts mutated mid-generation. */
     protected array $partCache = [];
 
+    /**
+     * Temp image files (downscaled/converted) that must outlive the working
+     * copy. ZipArchive only reads an addFile() source when close() runs, so
+     * these are deleted after the archive is closed, not when added.
+     *
+     * @var string[]
+     */
+    protected array $tempFiles = [];
+
     public function __construct(protected TextAutofitService $autofit) {}
 
     /**
@@ -49,6 +58,7 @@ class XlsxDirectGenerationService
         $this->warnings = [];
         $this->unknownPlaceholders = [];
         $this->partCache = [];
+        $this->tempFiles = [];
 
         $record->loadMissing('template');
         $values = $this->textValues($record);
@@ -75,6 +85,7 @@ class XlsxDirectGenerationService
             $this->processDrawings($zip, $values, $images);
         } finally {
             $zip->close();
+            $this->cleanupTempFiles();
         }
 
         foreach (array_keys($this->unknownPlaceholders) as $unknown) {
@@ -570,51 +581,62 @@ class XlsxDirectGenerationService
     protected function addImageMedia(ZipArchive $zip, string $drawingFile, string $slot, string $imageAbsPath): array
     {
         [$preparedPath, $ext, $cleanup] = $this->prepareImage($imageAbsPath);
-        try {
-            $existing = [];
-            for ($i = 0; $i < $zip->numFiles; $i++) {
-                $n = $zip->getNameIndex($i);
-                if (strpos($n, 'xl/media/') === 0) {
-                    $existing[] = $n;
-                }
-            }
-            do {
-                $mediaName = 'xl/media/img_'.$slot.'_'.Str::lower(Str::random(8)).'.'.$ext;
-            } while (in_array($mediaName, $existing, true));
+        if ($cleanup) {
+            // Keep the temp file until the archive is closed; ZipArchive reads
+            // addFile() sources lazily, at close() time.
+            $this->tempFiles[] = $preparedPath;
+        }
 
-            if ($zip->addFile($preparedPath, $mediaName) !== true) {
-                throw new \RuntimeException('Could not embed image into document.');
-            }
-
-            $this->ensureContentType($zip, $ext);
-
-            $relsFile = 'xl/drawings/_rels/'.basename($drawingFile).'.rels';
-            $rdom = $this->mutablePart($zip, $relsFile, '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="'.self::REL_NS.'"></Relationships>');
-            if (! $rdom) {
-                throw new \RuntimeException('Could not update drawing relationships.');
-            }
-            $rxp = new DOMXPath($rdom);
-            $rxp->registerNamespace('r', self::REL_NS);
-            $maxRid = 0;
-            foreach ($rxp->query('//r:Relationship') as $rel) {
-                if (preg_match('/rId(\d+)/', $rel->getAttribute('Id'), $mm)) {
-                    $maxRid = max($maxRid, (int) $mm[1]);
-                }
-            }
-            $relId = 'rId'.($maxRid + 1);
-            $rel = $rdom->createElementNS(self::REL_NS, 'Relationship');
-            $rel->setAttribute('Id', $relId);
-            $rel->setAttribute('Type', self::R_NS.'/image');
-            $rel->setAttribute('Target', '../media/'.basename($mediaName));
-            $rdom->documentElement->appendChild($rel);
-            $zip->addFromString($relsFile, $rdom->saveXML());
-
-            return [$mediaName, $relId];
-        } finally {
-            if ($cleanup && is_file($preparedPath)) {
-                @unlink($preparedPath);
+        $existing = [];
+        for ($i = 0; $i < $zip->numFiles; $i++) {
+            $n = $zip->getNameIndex($i);
+            if (strpos($n, 'xl/media/') === 0) {
+                $existing[] = $n;
             }
         }
+        do {
+            $mediaName = 'xl/media/img_'.$slot.'_'.Str::lower(Str::random(8)).'.'.$ext;
+        } while (in_array($mediaName, $existing, true));
+
+        if ($zip->addFile($preparedPath, $mediaName) !== true) {
+            throw new \RuntimeException('Could not embed image into document.');
+        }
+
+        $this->ensureContentType($zip, $ext);
+
+        $relsFile = 'xl/drawings/_rels/'.basename($drawingFile).'.rels';
+        $rdom = $this->mutablePart($zip, $relsFile, '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="'.self::REL_NS.'"></Relationships>');
+        if (! $rdom) {
+            throw new \RuntimeException('Could not update drawing relationships.');
+        }
+        $rxp = new DOMXPath($rdom);
+        $rxp->registerNamespace('r', self::REL_NS);
+        $maxRid = 0;
+        foreach ($rxp->query('//r:Relationship') as $rel) {
+            if (preg_match('/rId(\d+)/', $rel->getAttribute('Id'), $mm)) {
+                $maxRid = max($maxRid, (int) $mm[1]);
+            }
+        }
+        $relId = 'rId'.($maxRid + 1);
+        $rel = $rdom->createElementNS(self::REL_NS, 'Relationship');
+        $rel->setAttribute('Id', $relId);
+        $rel->setAttribute('Type', self::R_NS.'/image');
+        $rel->setAttribute('Target', '../media/'.basename($mediaName));
+        $rdom->documentElement->appendChild($rel);
+        $zip->addFromString($relsFile, $rdom->saveXML());
+
+        return [$mediaName, $relId];
+    }
+
+    /** Remove any temp image files left over from prepareImage(). */
+    protected function cleanupTempFiles(): void
+    {
+        foreach ($this->tempFiles as $file) {
+            if (is_file($file)) {
+                @unlink($file);
+            }
+        }
+        $this->tempFiles = [];
     }
 
     protected function ensureContentType(ZipArchive $zip, string $ext): void

@@ -70,7 +70,7 @@ Route::middleware('auth')->group(function () {
 
     Route::get('records/{record}/image/{type}', [PatientRecordController::class, 'image'])
         ->name('records.image')
-        ->where('type', 'id|error');
+        ->where('type', 'id|error|id_proof');
 
     Route::get('records/{record}/print', [DocumentGenerationController::class, 'printView'])
         ->name('records.print');

@@ -42,17 +42,19 @@ class PrintPreviewScaleTest extends TestCase
         ]);
 
         $preview = [
-            'background' => null,
-            'width' => $width,
-            'height' => $height,
-            'bgX' => 0, 'bgY' => 0, 'bgW' => $width, 'bgH' => $height,
-            'boxes' => [[
-                'kind' => 'text',
-                'x' => 10.0, 'y' => 20.0, 'w' => 200.0, 'h' => 28.0,
-                'lines' => [[
-                    'text' => $record->patient_name,
-                    'align' => 'left',
-                    'style' => ['size' => 14.0, 'bold' => false, 'color' => '000000'],
+            'pages' => [[
+                'background' => null,
+                'width' => $width,
+                'height' => $height,
+                'bgX' => 0, 'bgY' => 0, 'bgW' => $width, 'bgH' => $height,
+                'boxes' => [[
+                    'kind' => 'text',
+                    'x' => 10.0, 'y' => 20.0, 'w' => 200.0, 'h' => 28.0,
+                    'lines' => [[
+                        'text' => $record->patient_name,
+                        'align' => 'left',
+                        'style' => ['size' => 14.0, 'bold' => false, 'color' => '000000'],
+                    ]],
                 ]],
             ]],
         ];

@@ -83,7 +83,6 @@
                                 'existingImage' => null,
                                 'removeField' => 'remove_id_proof',
                             ])
-                            @error('id_proof')<p class="fielderror">{{ $message }}</p>@enderror
                         </div>
                     @endif
 

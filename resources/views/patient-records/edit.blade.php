@@ -88,7 +88,6 @@
                             'existingImage' => $record->id_proof_image_url,
                             'removeField' => 'remove_id_proof',
                         ])
-                        @error('id_proof')<p class="fielderror">{{ $message }}</p>@enderror
                     </div>
                 @endif
 

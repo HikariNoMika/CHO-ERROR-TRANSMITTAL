@@ -38,6 +38,7 @@
             box-shadow: 0 1px 3px rgba(15, 23, 42, .06);
             padding: 24px;
         }
+        .print-document + .print-document { margin-top: 16px; }
 
         /* ---------- Toolbar ---------- */
         .print-toolbar {
@@ -96,7 +97,7 @@
         .field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 2px; }
         .field .val { font-size: 14px; color: #0f172a; font-weight: 500; overflow-wrap: anywhere; }
         .field .val.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-        .img-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+        .img-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
         .img-block h3 { font-size: 14px; font-weight: 600; margin: 0 0 8px; padding-bottom: 4px; border-bottom: 1px solid #d1d5db; }
         .img-block img { width: 100%; max-height: 256px; object-fit: contain; border: 1px solid #d1d5db; border-radius: 8px; background: #fff; }
         .img-empty { height: 256px; border: 2px dashed #d1d5db; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 13px; }
@@ -130,7 +131,31 @@
             .print-page { max-width: none; margin: 0; padding: 0; }
             .sheet { border: 0; border-radius: 0; box-shadow: none; padding: 0; }
             .print-document { padding: 12mm; }
+            .print-document + .print-document { margin-top: 0; }
             .page-break { page-break-after: always; }
+            /* Template previews: exactly one printed page per worksheet. Each
+               page is one page tall and its preview is scaled to fit BOTH the
+               page width and height (min() against the sheet's aspect ratio
+               --ar), then centred. Without this a sheet that filled the width
+               edge-to-edge came out a few mm taller than US Letter (279mm) and
+               the browser emitted a stray blank page before the next sheet. */
+            .xlsx-page {
+                box-sizing: border-box;
+                height: 100vh;
+                padding: 10mm;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                overflow: hidden;
+                break-inside: avoid;
+                page-break-inside: avoid;
+            }
+            .xlsx-page .xlsx-preview {
+                width: min(100%, calc((100vh - 20mm) * var(--ar, 0.7071)));
+                height: auto;
+                aspect-ratio: var(--ar, 0.7071);
+                margin: 0 auto;
+            }
             img { max-width: 100%; height: auto; }
         }
     </style>

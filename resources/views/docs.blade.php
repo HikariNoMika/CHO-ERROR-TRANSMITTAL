@@ -79,7 +79,7 @@
         <p>Error records need, at minimum:</p>
         <ul>
             <li>Patient name, birthdate, PhilHealth ID and PCU error code</li>
-            <li>An <strong>ID Image</strong> and an <strong>Empanelment Error Image</strong></li>
+            <li>An <strong>ID Image</strong>, an <strong>ID Proof</strong> and an <strong>Empanelment Error Image</strong></li>
             <li>An active Excel template (see <strong>Settings</strong>)</li>
         </ul>
         <p>
@@ -93,9 +93,10 @@
         </p>
         <p>
             <strong>Medical Mission</strong> records need the standard fields plus an active
-            template for the Mission record type, and may carry an <strong>ID Proof</strong> image
-            &mdash; a photo of the ID document itself, which is separate from the photo of the
-            patient holding the ID. Put <code>@{{id_proof}}</code> in the template to place it.
+            template for the Mission record type, and carry the same three images. Each image is only
+            captured and placed when the template actually asks for it: put
+            <code>@{{image_with_id}}</code>, <code>@{{id_proof}}</code> and
+            <code>@{{empanelment_error}}</code> in the template to place them.
         </p>
 
         <div class="docs-note">
@@ -151,9 +152,11 @@
         <h4>Image placeholders</h4>
         <p>
             Image placeholders work differently from text ones: the uploaded picture is placed
-            <em>over</em> the cell and the placeholder text is removed. <strong>Only the first
-            matching cell on each sheet receives the image</strong>, so use one image placeholder per
-            sheet.
+            <em>over</em> the placeholder and the placeholder text is removed. In a
+            <strong>text-box</strong> template each image placeholder is its own text box, so all
+            three pictures can live on one sheet. In a plain <strong>cell-based</strong> template only
+            the first matching cell on each sheet receives the image, so use one image placeholder per
+            sheet there.
         </p>
         <table>
             <thead>
@@ -163,7 +166,7 @@
                 <tr><td>ID image <span class="hint">(photo of the patient holding the ID)</span></td><td><code>@{{image_with_id}}</code> or <code>@{{person_with_id}}</code></td><td>Yes</td></tr>
                 <tr><td>Empanelment error image</td><td><code>@{{empanelment_error}}</code></td><td>Yes</td></tr>
                 <tr>
-                    <td>ID Proof <span class="hint">(photo of the ID document itself &mdash; Medical Mission)</span></td>
+                    <td>ID Proof <span class="hint">(photo of the ID document itself)</span></td>
                     <td><code>@{{id_proof}}</code> or <code>@{{id_proof_image}}</code></td>
                     <td>Yes</td>
                 </tr>
@@ -179,6 +182,28 @@
                 </tr>
             </tbody>
         </table>
+
+        <h4>Printing the form and the photos on separate pages</h4>
+        <p>
+            A template may contain more than one sheet, and <strong>each sheet prints as its own
+            page</strong>. To keep the form on page 1 and the pictures on page 2, split them across
+            two sheets:
+        </p>
+        <ul>
+            <li>On the <strong>form sheet</strong>, use only text placeholders &mdash; do not place
+                any image placeholder there.</li>
+            <li>On the <strong>photo sheet</strong>, draw one <strong>text box</strong> per picture
+                and type the image placeholder inside it:
+                <code>@{{image_with_id}}</code>, <code>@{{id_proof}}</code> and
+                <code>@{{empanelment_error}}</code>. All three can sit on the same sheet; each
+                uploaded picture fills its own text box, so size and position the boxes the way you
+                want them printed.</li>
+        </ul>
+        <p class="hint">
+            In a text-box template the image placeholders are read from text boxes only (a photo
+            placeholder typed into a plain cell is ignored). Text placeholders may live in cells or
+            text boxes.
+        </p>
 
         <div class="docs-note">
             <strong>Adding a placeholder the app does not know?</strong> Add an entry to

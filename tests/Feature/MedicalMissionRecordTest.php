@@ -217,7 +217,7 @@ class MedicalMissionRecordTest extends TestCase
         ])->assertSessionHasErrors(['pcu_error_code']);
     }
 
-    public function test_the_create_page_for_mission_asks_for_the_id_proof_and_not_an_error_screenshot(): void
+    public function test_the_create_page_for_mission_asks_for_all_three_photos(): void
     {
         $response = $this->actingAs($this->user)->get(route('records.mission.create'));
 
@@ -227,19 +227,20 @@ class MedicalMissionRecordTest extends TestCase
         // The ID document itself is a second, separate upload.
         $response->assertSee('ID Proof');
         $response->assertSee('name="id_proof"', false);
-        $response->assertDontSee('name="empanelment_error_image"', false);
+        // The empanelment error screenshot is the third upload.
+        $response->assertSee('name="empanelment_error_image"', false);
         $response->assertDontSee('name="pcu_error_code"', false);
     }
 
-    public function test_the_create_page_for_error_keeps_its_two_photos_and_no_id_proof(): void
+    public function test_the_create_page_for_error_shows_all_three_photos(): void
     {
         $response = $this->actingAs($this->user)->get(route('records.error.create'));
 
         $response->assertOk();
         $response->assertSee('name="image_with_id"', false);
         $response->assertSee('name="empanelment_error_image"', false);
+        $response->assertSee('name="id_proof"', false);
         $response->assertSee('name="pcu_error_code"', false);
-        $response->assertDontSee('name="id_proof"', false);
     }
 
     public function test_the_success_create_page_saves_without_a_template(): void
@@ -336,11 +337,10 @@ class MedicalMissionRecordTest extends TestCase
     }
 
     /**
-     * A mission template that declares an error-image slot the record has no
-     * value for: generation must skip that slot rather than demand it, while
-     * still demanding the ID photo and the ID proof.
+     * Both printing types now carry all three photos, so a mission template
+     * that declares the error slot must be given one too.
      */
-    public function test_generation_demands_the_id_photos_but_not_an_error_image_for_a_mission(): void
+    public function test_generation_demands_all_three_photos_for_a_mission(): void
     {
         $this->withFields('mission', ['image_with_id', 'id_proof', 'empanelment_error']);
 
@@ -348,15 +348,16 @@ class MedicalMissionRecordTest extends TestCase
         $mission->forceFill([
             'image_with_id_path' => $this->storeFakeIdPhoto('id'),
             'id_proof_image_path' => $this->storeFakeIdPhoto('proof'),
+            'empanelment_error_image_path' => $this->storeFakeIdPhoto('err'),
         ])->save();
 
-        // Both required photos are supplied, so no error screenshot is demanded.
+        // All three photos are supplied, so generation proceeds.
         $this->actingAs($this->user)
             ->from(route('records.show', $mission))
             ->get(route('records.generate', $mission))
             ->assertSessionHasNoErrors();
 
-        // With the photos missing, the image slots are still reported.
+        // With none supplied, every image slot is reported.
         $noPhotos = $this->makeRecord('mission', 'NO PHOTOS');
         $this->actingAs($this->user)
             ->from(route('records.show', $noPhotos))
@@ -366,7 +367,7 @@ class MedicalMissionRecordTest extends TestCase
         $message = session('errors')->first('generation');
         $this->assertStringContainsString('ID Image', $message);
         $this->assertStringContainsString('ID Proof', $message);
-        $this->assertStringNotContainsString('Empanelment Error Image', $message);
+        $this->assertStringContainsString('Empanelment Error Image', $message);
     }
 
     public function test_a_missing_id_proof_alone_blocks_generation(): void

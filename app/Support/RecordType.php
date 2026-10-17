@@ -56,7 +56,7 @@ final class RecordType
             'evidence' => true,
             'error_code' => false,
             'error_image' => true,
-            'id_proof' => false,
+            'id_proof' => true,
         ],
         self::SUCCESS => [
             'label' => 'PCU Success',
@@ -86,7 +86,7 @@ final class RecordType
             'template' => true,
             'evidence' => true,
             'error_code' => false,
-            'error_image' => false,
+            'error_image' => true,
             'id_proof' => true,
         ],
     ];

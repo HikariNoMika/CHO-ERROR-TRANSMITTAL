@@ -2,21 +2,24 @@
 
 namespace App\Services;
 
-use App\Models\PatientRecord;
-use App\Models\Template;
 use App\Models\DocumentGeneration;
+use App\Models\PatientRecord;
+use App\Models\Setting;
+use App\Models\Template;
 use App\Models\User;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use PhpOffice\PhpSpreadsheet\Cell\Cell;
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Worksheet\Drawing;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
-
 
 class DocumentGenerationService
 {
     protected TemplateParserService $templateParser;
+
     protected XlsxDirectGenerationService $directService;
 
     public function __construct(
@@ -85,7 +88,7 @@ class DocumentGenerationService
         foreach ($spreadsheet->getAllSheets() as $sheet) {
             $highestRow = $sheet->getHighestRow();
             $highestColumn = $sheet->getHighestColumn();
-            $highestColumnIndex = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($highestColumn);
+            $highestColumnIndex = Coordinate::columnIndexFromString($highestColumn);
 
             for ($row = 1; $row <= $highestRow; $row++) {
                 for ($col = 1; $col <= $highestColumnIndex; $col++) {
@@ -120,7 +123,7 @@ class DocumentGenerationService
     protected function shouldAutofitField(string $rawCellText): bool
     {
         $config = config('mca.autofit');
-        if (!($config['enabled'] ?? true)) {
+        if (! ($config['enabled'] ?? true)) {
             return false;
         }
         $fields = $config['fields'];
@@ -143,6 +146,7 @@ class DocumentGenerationService
     {
         return preg_replace_callback('/\{\{(\w+)\}\}/', function ($matches) use ($data) {
             $key = $matches[1];
+
             return $data[$key] ?? $matches[0];
         }, $text);
     }
@@ -155,8 +159,8 @@ class DocumentGenerationService
             'date_today' => ($record->date_today ?? now())->format('m-d-y'),
             'philhealth_id' => $record->philhealth_id,
             'head_of_clinic' => $record->head_of_clinic,
-            'facility_name' => \App\Models\Setting::getFacilityName(),
-            'facility_address' => \App\Models\Setting::getFacilityAddress(),
+            'facility_name' => Setting::getFacilityName(),
+            'facility_address' => Setting::getFacilityAddress(),
             'appointment_date' => $record->appointment_date?->format('m-d-y') ?? '',
             'auth_transaction_code' => (string) ($record->auth_transaction_code ?? ''),
             'pcu_error_code' => (string) ($record->pcu_error_code ?? ''),
@@ -168,33 +172,32 @@ class DocumentGenerationService
             $data[$alias] = $canonical[$field] ?? '';
         }
         $data['fullname'] = $canonical['patient_name'];
+
         return $data;
     }
 
     protected function insertImages(Spreadsheet $spreadsheet, PatientRecord $record): void
     {
-        $imagePlaceholders = [
-            'image_with_id' => $record->image_with_id_path,
-            'person_with_id' => $record->image_with_id_path,
-            'empanelment_error' => $record->empanelment_error_image_path,
-        ];
-
         foreach ($spreadsheet->getAllSheets() as $sheet) {
-            foreach ($imagePlaceholders as $placeholder => $imagePath) {
-                $this->insertImageInSheet($sheet, $placeholder, $imagePath);
+            foreach (PlaceholderMap::IMAGES as $placeholder => $slot) {
+                $column = PlaceholderMap::slotColumn($slot);
+                if ($column === null) {
+                    continue;
+                }
+                $this->insertImageInSheet($sheet, $placeholder, $record->{$column});
             }
         }
     }
 
     protected function insertImageInSheet(Worksheet $sheet, string $placeholder, ?string $imagePath): void
     {
-        if (!$imagePath || !Storage::disk('private')->exists($imagePath)) {
+        if (! $imagePath || ! Storage::disk('private')->exists($imagePath)) {
             return;
         }
 
         $highestRow = $sheet->getHighestRow();
         $highestColumn = $sheet->getHighestColumn();
-        $highestColumnIndex = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($highestColumn);
+        $highestColumnIndex = Coordinate::columnIndexFromString($highestColumn);
 
         for ($row = 1; $row <= $highestRow; $row++) {
             for ($col = 1; $col <= $highestColumnIndex; $col++) {
@@ -205,18 +208,19 @@ class DocumentGenerationService
                     $this->insertImageAtCell($sheet, $cell, $imagePath);
                     // Clear the placeholder text after inserting image
                     $cell->setValue(str_replace("{{$placeholder}}", '', $value));
+
                     return;
                 }
             }
         }
     }
 
-    protected function insertImageAtCell(Worksheet $sheet, \PhpOffice\PhpSpreadsheet\Cell\Cell $cell, string $imagePath): void
+    protected function insertImageAtCell(Worksheet $sheet, Cell $cell, string $imagePath): void
     {
         $coordinate = $cell->getCoordinate();
         $fullPath = Storage::disk('private')->path($imagePath);
 
-        $drawing = new Drawing();
+        $drawing = new Drawing;
         $drawing->setName('Image');
         $drawing->setDescription('Patient Image');
         $drawing->setPath($fullPath);
@@ -230,13 +234,13 @@ class DocumentGenerationService
         if ($imageSize) {
             $width = $imageSize[0];
             $height = $imageSize[1];
-            
+
             $maxWidth = 300;
             $maxHeight = 200;
-            
+
             $ratio = min($maxWidth / $width, $maxHeight / $height);
-            $drawing->setWidth((int)($width * $ratio));
-            $drawing->setHeight((int)($height * $ratio));
+            $drawing->setWidth((int) ($width * $ratio));
+            $drawing->setHeight((int) ($height * $ratio));
         }
     }
 
@@ -247,11 +251,11 @@ class DocumentGenerationService
         $uniqueId = Str::upper(Str::random(6));
         $filename = "EMPANELMENT_{$sanitizedName}_{$dateStr}_{$uniqueId}.xlsx";
 
-        $path = "generated-documents/" . now()->format('Y/m');
+        $path = 'generated-documents/'.now()->format('Y/m');
         $fullPath = storage_path("app/private/{$path}");
 
         Storage::disk('private')->makeDirectory($path);
-        
+
         $writer = IOFactory::createWriter($spreadsheet, 'Xlsx');
         $writer->save(storage_path("app/private/{$path}/{$filename}"));
 
