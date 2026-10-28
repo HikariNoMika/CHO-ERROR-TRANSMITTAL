@@ -87,6 +87,7 @@
                 color: #cbd5e1; padding: 1.25rem .9rem;
             }
             .main { flex: 1; min-width: 0; margin-left: 260px; }
+            .main.main-guest { margin-left: 0; }
         }
 
         .brand-mark { width: 40px; height: 40px; border-radius: 10px; background: var(--grad-brand); color: #fff; font-weight: 800; font-size: 18px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
@@ -497,7 +498,7 @@
         </aside>
         @endauth
 
-        <div class="main">
+        <div class="main{{ auth()->check() ? '' : ' main-guest' }}">
             <main class="page">
                 <div class="page-head">
                     @yield('page-title')
