@@ -8,7 +8,110 @@
     <style>
         *, *::before, *::after { box-sizing: border-box; }
         html, body { margin: 0; padding: 0; }
-        body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; background: #f1f5f9; color: #111827; font-size: 14px; line-height: 1.5; }
+        body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; background: #f1f5f9; color: #111827; font-size: 14px; line-height: 1.5; transition: background .2s, color .2s; }
+        /* ---- Dark mode ---- */
+        html.dark body { background: #0f172a; color: #e2e8f0; }
+        html.dark .navbar { background: #1e293b; border-bottom-color: #334155; }
+        html.dark .navbar .brand { color: #f1f5f9; }
+        html.dark .navbar .crumb { color: #94a3b8; }
+        html.dark .navbar .whoami div:first-child { color: #f1f5f9; }
+        html.dark .navbar .whoami div:last-child { color: #94a3b8; }
+        html.dark .navbar .user-btn { color: #f1f5f9; }
+        html.dark .navbar .user-btn:hover, html.dark .navbar .user-menu.open .user-btn { background: #334155; border-color: #475569; }
+        html.dark .navbar .user-drop { background: #1e293b; border-color: #334155; }
+        html.dark .navbar .user-drop .meta { border-bottom-color: #334155; }
+        html.dark .navbar .user-drop .meta strong { color: #f1f5f9; }
+        html.dark .navbar .user-drop .meta span { color: #94a3b8; }
+        html.dark .navbar .user-drop a, html.dark .navbar .user-drop button { color: #cbd5e1; }
+        html.dark .navbar .user-drop a:hover, html.dark .navbar .user-drop button:hover { background: #334155; color: #f1f5f9; }
+        html.dark .navbar .hamburger { background: #1e293b; border-color: #334155; color: #f1f5f9; }
+        html.dark .drawer { background: var(--grad-shell); }
+        html.dark .sidebar { background: var(--grad-shell); }
+        html.dark .page { color: #e2e8f0; }
+        html.dark .card { background: #1e293b; border-color: #334155; box-shadow: 0 1px 2px rgba(0,0,0,.2), 0 8px 24px -12px rgba(0,0,0,.4); }
+        html.dark .card-head, html.dark .page-title { color: #f1f5f9; }
+        html.dark .meta-line { color: #94a3b8; }
+        html.dark table { background: #1e293b; }
+        html.dark th, html.dark td { border-bottom-color: #334155; color: #e2e8f0; }
+        html.dark tbody tr:nth-child(even) td { background: #1a2332; }
+        html.dark tbody tr:hover td { background: #2a3a52; }
+        html.dark thead th { background: #1a2332; color: #94a3b8; border-bottom-color: #334155; }
+        html.dark .table-wrap { border-color: #334155; background: #1e293b; }
+        html.dark .table-empty { color: #64748b; }
+        html.dark .bulk-bar { background: #1e293b; border-color: #334155; }
+        html.dark .bulk-count { color: #94a3b8; }
+        html.dark .bulk-count strong { color: #f1f5f9; }
+        html.dark .bulk-selectall { color: #cbd5e1; }
+        html.dark input[type=text], html.dark input[type=date], html.dark input[type=email], html.dark input[type=password], html.dark select, html.dark textarea { background: #0f172a; border-color: #334155; color: #e2e8f0; }
+        html.dark input:focus, html.dark select:focus, html.dark textarea:focus { background: #1e293b; border-color: #2563eb; }
+        html.dark label { color: #cbd5e1; }
+        html.dark .field .val { color: #e2e8f0; }
+        html.dark .field label { color: #94a3b8; }
+        html.dark .hint { color: #64748b; }
+        html.dark .fielderror { color: #f87171; }
+        html.dark .flash { border-color: #334155; }
+        html.dark .flash-success { background: #052e16; border-color: #166534; color: #86efac; }
+        html.dark .flash-error { background: #450a0a; border-color: #991b1b; color: #fca5a5; }
+        html.dark .flash-warn { background: #422006; border-color: #92400e; color: #fcd34d; }
+        html.dark .kpi { background: #1e293b; border-color: #334155; }
+        html.dark .kpi-label { color: #94a3b8; }
+        html.dark .kpi-value { color: #f1f5f9; }
+        html.dark .kpi-foot { color: #94a3b8; }
+        html.dark .spark-axis { color: #64748b; }
+        html.dark .mix { background: #334155; }
+        html.dark .docs th, html.dark .docs td { border-bottom-color: #334155; }
+        html.dark .docs th { background: #1a2332; color: #f1f5f9; }
+        html.dark .docs p, html.dark .docs li { color: #cbd5e1; }
+        html.dark .docs code { background: #1e293b; color: #93c5fd; }
+        html.dark .docs pre { background: #0a0f1a; color: #e2e8f0; }
+        html.dark .docs-note { background: #1a2332; }
+        html.dark .credits-list li { border-bottom-color: #334155; }
+        html.dark .cr-name { color: #f1f5f9; }
+        html.dark .cr-meta { color: #94a3b8; }
+        html.dark .shot { border-color: #334155; background: #1a2332; }
+        html.dark .shot-empty { border-color: #334155; background: #1a2332; color: #64748b; }
+        html.dark .dropzone { background: #1a2332; border-color: #475569; }
+        html.dark .dropzone.armed, html.dark .dropzone.paste-target { background: #1e3a5f; border-color: #2563eb; }
+        html.dark .image-upload img.preview { border-color: #334155; }
+        html.dark .btn-secondary { background: #1e293b; border-color: #334155; color: #cbd5e1; }
+        html.dark .btn-secondary:hover { background: #334155; border-color: #475569; }
+        html.dark .btn-danger { background: #1e293b; border-color: #7f1d1d; color: #fca5a5; }
+        html.dark .btn-danger:hover { background: #450a0a; }
+        html.dark .row-actions a { background: #1e3a5f; color: #93c5fd; border-color: #1e40af; }
+        html.dark .row-actions a:hover { background: #1e40af; }
+        html.dark .row-actions .btn-danger { background: #1e293b; border-color: #7f1d1d; color: #fca5a5; }
+        html.dark .pager-nav a, html.dark .pager-nav span { background: #1e293b; border-color: #334155; color: #cbd5e1; }
+        html.dark .pager-nav a:hover { background: #334155; border-color: #475569; }
+        html.dark .pager-nav .is-disabled { color: #475569; background: #1a2332; }
+        html.dark .bulk-result.is-error { background: #450a0a; border-color: #7f1d1d; color: #fca5a5; }
+        html.dark .login-card .login-head { border-bottom-color: #334155; }
+        html.dark .login-head h2 { color: #f1f5f9; }
+        html.dark .login-head p { color: #94a3b8; }
+        html.dark .login-foot a { color: #60a5fa; }
+        html.dark .card { background: #1e293b; }
+        html.dark .shot .zoom { background: rgba(15,23,42,.9); }
+        html.dark .delta-flat { background: #334155; color: #cbd5e1; }
+        html.dark .badge { background: #334155; color: #cbd5e1; }
+        html.dark .badge-green { background: #052e16; color: #86efac; }
+        html.dark .badge-red { background: #450a0a; color: #fca5a5; }
+        html.dark .badge-blue { background: #1e3a5f; color: #93c5fd; }
+        html.dark .pill-slate { background: #334155; color: #cbd5e1; }
+        html.dark .pill-blue { background: #1e3a5f; color: #93c5fd; }
+        html.dark .pill-green { background: #052e16; color: #86efac; }
+        html.dark .pill-red { background: #450a0a; color: #fca5a5; }
+        html.dark .pill-amber { background: #422006; color: #fcd34d; }
+        html.dark .avatar { background: var(--grad-brand); }
+        html.dark .crumb { color: #94a3b8; }
+        html.dark .whoami div:first-child { color: #f1f5f9; }
+        html.dark .whoami div:last-child { color: #94a3b8; }
+        html.dark .user-btn { color: #f1f5f9; }
+        html.dark .user-drop a, html.dark .user-drop button { color: #cbd5e1; }
+        html.dark .user-drop a:hover, html.dark .user-drop button:hover { background: #334155; color: #f1f5f9; }
+        /* theme toggle button */
+        .theme-toggle { background: none; border: 1px solid #dbe1ea; border-radius: 6px; padding: .3rem .55rem; cursor: pointer; font-size: 15px; line-height: 1; color: #0f172a; }
+        html.dark .theme-toggle { background: #1e293b; border-color: #334155; color: #f1f5f9; }
+        .theme-toggle:hover { background: #f1f5f9; }
+        html.dark .theme-toggle:hover { background: #334155; }
         h1, h2, h3, h4 { margin: 0 0 .5rem; line-height: 1.25; }
         p { margin: 0 0 .5rem; }
         a { color: #1d4ed8; }
@@ -389,6 +492,15 @@
         kbd { padding: .1rem .4rem; font-size: 12px; background: #fff; border: 1px solid #d1d5db; border-radius: 4px; }
         code { font-family: ui-monospace, monospace; font-size: 13px; }
     </style>
+    <script>
+        // Apply theme before render to avoid flash
+        (function() {
+            var t = localStorage.getItem('theme');
+            if (t === 'dark' || (!t && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.classList.add('dark');
+            }
+        })();
+    </script>
 </head>
 <body>
     <header class="navbar">
@@ -396,6 +508,7 @@
             @auth
             <button type="button" class="hamburger" onclick="document.getElementById('drawer').classList.remove('hidden');document.getElementById('drawer-veil').classList.remove('hidden');" aria-label="Open menu">&#9776;</button>
             @endauth
+            <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Toggle dark mode" title="Toggle dark mode">&#9788;</button>
             <a class="brand" href="{{ auth()->check() ? route('dashboard') : route('login') }}">
                 <span class="brand-mark">M</span>
                 <span>{{ config('app.name', 'MCA Patient Docs') }}</span>
@@ -533,6 +646,21 @@
 
     @stack('scripts')
     <script>
+        // Theme toggle
+        (function() {
+            var btn = document.getElementById('theme-toggle');
+            if (!btn) return;
+            function syncIcon() {
+                btn.innerHTML = document.documentElement.classList.contains('dark') ? '&#9790;' : '&#9788;';
+            }
+            syncIcon();
+            btn.addEventListener('click', function() {
+                document.documentElement.classList.toggle('dark');
+                var isDark = document.documentElement.classList.contains('dark');
+                localStorage.setItem('theme', isDark ? 'dark' : 'light');
+                syncIcon();
+            });
+        })();
         // Reset scroll positions on load so tables never open scrolled aside.
         if ('scrollRestoration' in history) {
             history.scrollRestoration = 'manual';
