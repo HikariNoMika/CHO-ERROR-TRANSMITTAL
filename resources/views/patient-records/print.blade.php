@@ -44,7 +44,7 @@
                                 <img src="{{ $box['src'] }}" alt="{{ $box['label'] }}" style="position:absolute;left:{{ $box['x'] / $page['width'] * 100 }}%;top:{{ $box['y'] / $page['height'] * 100 }}%;width:{{ $box['w'] / $page['width'] * 100 }}%;height:{{ $box['h'] / $page['height'] * 100 }}%;object-fit:fill;">
                             @endif
                         @else
-                            <div style="position:absolute;left:{{ $box['x'] / $page['width'] * 100 }}%;top:{{ $box['y'] / $page['height'] * 100 }}%;width:{{ $box['w'] / $page['width'] * 100 }}%;height:{{ $box['h'] / $page['height'] * 100 }}%;overflow:hidden;">
+                            <div style="position:absolute;left:{{ $box['x'] / $page['width'] * 100 }}%;top:{{ $box['y'] / $page['height'] * 100 }}%;width:{{ $box['w'] / $page['width'] * 100 }}%;height:{{ $box['h'] / $page['height'] * 100 }}%;overflow:hidden;display:flex;flex-direction:column;justify-content:{{ ($box['valign'] ?? 'top') === 'middle' ? 'center' : (($box['valign'] ?? 'top') === 'bottom' ? 'flex-end' : 'flex-start') }};">
                                 @foreach ($box['lines'] as $line)
                                     {{-- Font must scale with the sheet: shape geometry is expressed as a
                                          percentage of the preview width, so a fixed pt size would shrink

@@ -278,7 +278,18 @@ class XlsxTemplatePreviewService
 
         $lines = $this->autofitLines($xp, $shape, $fullText, $lines);
 
-        return array_merge($geom, ['kind' => 'text', 'lines' => $lines]);
+        // Vertical text anchor from a:bodyPr @anchor (t/ctr/b). Excel
+        // vertically centres text in most of these shapes; ignoring it makes
+        // the placeholder look like it jumped up or down.
+        $bodyPr = $xp->query('./xdr:txBody/a:bodyPr', $shape)->item(0);
+        $anchor = $bodyPr && $bodyPr->hasAttribute('anchor') ? $bodyPr->getAttribute('anchor') : 't';
+        $valign = match ($anchor) {
+            'ctr' => 'middle',
+            'b' => 'bottom',
+            default => 'top',
+        };
+
+        return array_merge($geom, ['kind' => 'text', 'lines' => $lines, 'valign' => $valign]);
     }
 
     protected function runStyle(DOMXPath $xp, $para): array
