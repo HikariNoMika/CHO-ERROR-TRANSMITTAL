@@ -240,14 +240,17 @@ class PatientRecordController extends Controller
         // Handle image uploads
         if ($request->hasFile('image_with_id')) {
             $data['image_with_id_path'] = $request->file('image_with_id')->store('patient-images/'.now()->format('Y/m'), 'private');
+            $this->resizeImageIfNeeded($data['image_with_id_path']);
         }
 
         if ($request->hasFile('empanelment_error_image')) {
             $data['empanelment_error_image_path'] = $request->file('empanelment_error_image')->store('patient-images/'.now()->format('Y/m'), 'private');
+            $this->resizeImageIfNeeded($data['empanelment_error_image_path']);
         }
 
         if ($request->hasFile('id_proof')) {
             $data['id_proof_image_path'] = $request->file('id_proof')->store('patient-images/'.now()->format('Y/m'), 'private');
+            $this->resizeImageIfNeeded($data['id_proof_image_path']);
         }
 
         // Handle base64 pasted images
@@ -307,6 +310,7 @@ class PatientRecordController extends Controller
                 Storage::disk('private')->delete($record->image_with_id_path);
             }
             $data['image_with_id_path'] = $request->file('image_with_id')->store('patient-images/'.now()->format('Y/m'), 'private');
+            $this->resizeImageIfNeeded($data['image_with_id_path']);
         } elseif ($request->boolean('remove_image_with_id')) {
             if ($record->image_with_id_path) {
                 Storage::disk('private')->delete($record->image_with_id_path);
@@ -319,6 +323,7 @@ class PatientRecordController extends Controller
                 Storage::disk('private')->delete($record->empanelment_error_image_path);
             }
             $data['empanelment_error_image_path'] = $request->file('empanelment_error_image')->store('patient-images/'.now()->format('Y/m'), 'private');
+            $this->resizeImageIfNeeded($data['empanelment_error_image_path']);
         } elseif ($request->boolean('remove_empanelment_error_image')) {
             if ($record->empanelment_error_image_path) {
                 Storage::disk('private')->delete($record->empanelment_error_image_path);
@@ -346,6 +351,7 @@ class PatientRecordController extends Controller
                 Storage::disk('private')->delete($record->id_proof_image_path);
             }
             $data['id_proof_image_path'] = $request->file('id_proof')->store('patient-images/'.now()->format('Y/m'), 'private');
+            $this->resizeImageIfNeeded($data['id_proof_image_path']);
         } elseif ($request->boolean('remove_id_proof')) {
             if ($record->id_proof_image_path) {
                 Storage::disk('private')->delete($record->id_proof_image_path);
@@ -435,6 +441,63 @@ class PatientRecordController extends Controller
         Storage::disk('private')->makeDirectory($path);
         file_put_contents("{$fullPath}/{$filename}", $content);
 
+        $this->resizeImageIfNeeded("{$path}/{$filename}");
+
         return "{$path}/{$filename}";
+    }
+
+    /**
+     * Downscale an image on disk so neither side exceeds 1600px. Keeps aspect
+     * ratio and converts to JPEG/PNG as appropriate. No-op for small images or
+     * when GD is unavailable.
+     */
+    protected function resizeImageIfNeeded(string $relativePath): void
+    {
+        if (! extension_loaded('gd')) {
+            return;
+        }
+
+        $disk = Storage::disk('private');
+        if (! $disk->exists($relativePath)) {
+            return;
+        }
+
+        $abs = $disk->path($relativePath);
+        $info = @getimagesize($abs);
+        if (! $info || $info[0] <= 1600 && $info[1] <= 1600) {
+            return;
+        }
+
+        [$w, $h, $type] = $info;
+        $scale = min(1600 / $w, 1600 / $h);
+        $newW = (int) round($w * $scale);
+        $newH = (int) round($h * $scale);
+
+        $src = match ($type) {
+            IMAGETYPE_JPEG => @imagecreatefromjpeg($abs),
+            IMAGETYPE_PNG => @imagecreatefrompng($abs),
+            IMAGETYPE_WEBP => function_exists('imagecreatefromwebp') ? @imagecreatefromwebp($abs) : null,
+            default => null,
+        };
+        if (! $src) {
+            return;
+        }
+
+        $dst = imagecreatetruecolor($newW, $newH);
+        if ($type === IMAGETYPE_PNG) {
+            imagealphablending($dst, false);
+            imagesavealpha($dst, true);
+        }
+        imagecopyresampled($dst, $src, 0, 0, 0, 0, $newW, $newH, $w, $h);
+
+        match ($type) {
+            IMAGETYPE_JPEG => imagejpeg($dst, $abs, 85),
+            IMAGETYPE_PNG => imagepng($dst, $abs, 6),
+            IMAGETYPE_WEBP => function_exists('imagewebp') ? imagewebp($dst, $abs, 85) : imagejpeg($dst, $abs, 85),
+            default => imagejpeg($dst, $abs, 85),
+        };
+
+        imagedestroy($src);
+        imagedestroy($dst);
     }
 }
