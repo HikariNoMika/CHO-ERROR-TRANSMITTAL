@@ -148,7 +148,7 @@
         .navbar-inner { display: flex; align-items: center; gap: .9rem; height: 100%; padding: 0 1.1rem; flex-wrap: nowrap; }
         .navbar .brand { display: flex; align-items: center; gap: .5rem; font-size: 16px; font-weight: 800; color: #0f172a; text-decoration: none; white-space: nowrap; }
         .navbar .brand-mark { width: 26px; height: 26px; border-radius: 7px; font-size: 12px; }
-        .navbar .crumb { color: #64748b; font-size: 12.5px; margin-right: auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .navbar .crumb { color: #64748b; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .navbar .avatar { width: 28px; height: 28px; border-radius: 50%; background: var(--grad-brand); color: #fff; font-weight: 700; font-size: 12px; display: flex; align-items: center; justify-content: center; }
         .navbar .whoami { line-height: 1.15; text-align: right; }
         .navbar .whoami div:first-child { font-size: 12.5px; font-weight: 600; color: #0f172a; }
@@ -157,7 +157,7 @@
            button[type=submit] rules below would otherwise win on specificity
            and turn the avatar button into an inline-block, which wraps the
            name/role/avatar onto extra lines and pushes the avatar out of the bar. */
-        .navbar .user-menu { position: relative; margin-left: auto; flex-shrink: 0; }
+        .navbar .user-menu { position: relative; flex-shrink: 0; }
         .navbar .user-btn { display: flex; align-items: center; gap: .45rem; background: none; border: 1px solid transparent; border-radius: 999px; padding: .18rem .5rem .18rem .22rem; cursor: pointer; font-family: inherit; font-size: 14px; line-height: 1.15; color: #0f172a; white-space: nowrap; }
         .navbar .user-btn:hover, .navbar .user-menu.open .user-btn { background: #f1f5f9; border-color: #e2e8f0; }
         .navbar .user-btn .caret { color: #94a3b8; font-size: 10px; }
@@ -517,7 +517,7 @@
             @endguest
             @auth
             <div class="crumb">{{ now()->format('l, F j, Y') }}</div>
-            <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Toggle dark mode" title="Toggle dark mode">&#9788;</button>
+            <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Toggle dark mode" title="Toggle dark mode" style="margin-left:auto;">&#9788;</button>
             <div class="user-menu" id="user-menu">
                 <button type="button" class="user-btn" id="user-btn" aria-haspopup="true" aria-expanded="false">
                     <span class="whoami">
