@@ -508,13 +508,16 @@
             @auth
             <button type="button" class="hamburger" onclick="document.getElementById('drawer').classList.remove('hidden');document.getElementById('drawer-veil').classList.remove('hidden');" aria-label="Open menu">&#9776;</button>
             @endauth
-            <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Toggle dark mode" title="Toggle dark mode">&#9788;</button>
             <a class="brand" href="{{ auth()->check() ? route('dashboard') : route('login') }}">
                 <span class="brand-mark">M</span>
                 <span>{{ config('app.name', 'MCA Patient Docs') }}</span>
             </a>
+            @guest
+            <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Toggle dark mode" title="Toggle dark mode" style="margin-left:auto;">&#9788;</button>
+            @endguest
             @auth
             <div class="crumb">{{ now()->format('l, F j, Y') }}</div>
+            <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Toggle dark mode" title="Toggle dark mode">&#9788;</button>
             <div class="user-menu" id="user-menu">
                 <button type="button" class="user-btn" id="user-btn" aria-haspopup="true" aria-expanded="false">
                     <span class="whoami">
