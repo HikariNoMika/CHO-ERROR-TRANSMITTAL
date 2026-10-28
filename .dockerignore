@@ -1,0 +1,35 @@
+# VCS
+.git
+.gitignore
+.gitattributes
+
+# Dependencies (rebuilt in image)
+vendor/
+node_modules/
+
+# Environment (provided via compose / .env on host)
+.env
+# Keep .env.example for the entrypoint to seed from
+!.env.example
+
+# Tests & dev tooling
+tests/
+phpunit.xml
+.phpunit.result.cache
+.phpunit.cache
+
+# Stray / large files
+*.xlsx
+mca
+temp/
+storage/logs/*.log
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea
+.vscode
+
+# Screenshots
+*.png
+*.jpg
