@@ -27,6 +27,25 @@ fi
 # Run migrations (idempotent)
 php artisan migrate --force
 
+# Bootstrap the first admin account if the users table is empty.
+# Credentials come from env vars so they are never hardcoded.
+# This is a one-time bootstrap; subsequent deploys leave existing users alone.
+USER_COUNT=$(php artisan tinker --execute="echo \App\Models\User::count();" 2>/dev/null | tail -1)
+if [ "${USER_COUNT:-0}" = "0" ]; then
+    ADMIN_EMAIL="${ADMIN_EMAIL:-admin@example.com}"
+    ADMIN_PASSWORD="${ADMIN_PASSWORD:-ChangeMe123!}"
+    php artisan tinker --execute="
+        \$u = new \App\Models\User();
+        \$u->name = 'Admin';
+        \$u->email = '${ADMIN_EMAIL}';
+        \$u->password = bcrypt('${ADMIN_PASSWORD}');
+        \$u->role = 'admin';
+        \$u->is_active = true;
+        \$u->save();
+        echo 'Created admin: ${ADMIN_EMAIL}';
+    "
+fi
+
 # Cache config/routes/views for production performance
 php artisan config:cache
 php artisan route:cache

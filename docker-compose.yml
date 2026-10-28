@@ -35,6 +35,8 @@ services:
       DB_DATABASE: mca
       DB_USERNAME: mca
       DB_PASSWORD: ${DB_PASSWORD:-mca_secret_change_me}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-ChangeMe123!}
       SESSION_DRIVER: database
       CACHE_STORE: database
       QUEUE_CONNECTION: database
